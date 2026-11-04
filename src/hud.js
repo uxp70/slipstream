@@ -44,8 +44,15 @@ export class Hud {
       over: document.getElementById('screen-over'),
     };
 
+    this.weaponSlots = Array.from(document.querySelectorAll('#weapon-strip .wslot'));
+    this.fpsEl = document.getElementById('fps');
+    this.mapEl = document.getElementById('map-name');
+    this.qualityEl = document.getElementById('quality-label');
+
     this.pips = [];
+    this.pipMag = 30;
     this.lastPips = -1;
+    this.lastWeapon = -1;
     this.cache = {};
     this.hintHidden = false;
     this._v = new THREE.Vector3();
@@ -88,7 +95,7 @@ export class Hud {
     this.cache = {};
     this.clearPops();
     this.setHealth(100, 100);
-    this.setAmmo(30, 30, false);
+    this.setAmmo(30, 30, false, null);
     this.setDash(1);
     this.setSpeed(0);
     this.setScore(0);
@@ -118,17 +125,61 @@ export class Hud {
     this.edgeGlow.classList.toggle('on', low);
   }
 
-  setAmmo(cur, mag, reloading) {
+  // Ammo is shown as a number (numbers read faster than icons) with the
+  // magazine pips, the weapon name, and a low-ammo colour shift.
+  setAmmo(cur, mag, reloading, def) {
+    if (mag !== this.pipMag) {
+      this.pipMag = mag;
+      this.buildPips(mag);
+    }
     this.tx(this.el.ammoCur, String(cur));
     this.tx(this.el.ammoMag, String(mag));
     this.el.ammoTag.classList.toggle('reloading', !!reloading);
-    this.tx(this.el.ammoTag, reloading ? 'RELOADING…' : 'VX-9 ARC RIFLE');
+    this.tx(this.el.ammoTag, reloading ? 'RELOADING…' : def ? def.name : 'VX-9 ARC RIFLE');
+    const low = def && cur <= (def.lowAmmo ?? 3) && !reloading;
+    this.el.ammoCur.classList.toggle('low', !!low);
     if (this.lastPips !== cur) {
       this.lastPips = cur;
       for (let i = 0; i < this.pips.length; i++) {
         this.pips[i].classList.toggle('spent', i >= cur);
       }
     }
+  }
+
+  setWeapon(index) {
+    if (this.lastWeapon === index) return;
+    this.lastWeapon = index;
+    this.weaponSlots.forEach((el, i) => {
+      el.classList.toggle('active', i === index);
+    });
+  }
+
+  // every weapon's ammo is visible at once: you need to know what you can
+  // switch to before committing to the switch
+  setWeapons(list, index) {
+    for (let i = 0; i < this.weaponSlots.length; i++) {
+      const slot = this.weaponSlots[i];
+      const w = list[i];
+      if (!slot || !w) continue;
+      const ammoEl = slot.querySelector('.wammo');
+      const magEl = slot.querySelector('.wmag');
+      if (ammoEl) ammoEl.textContent = String(w.ammo);
+      if (magEl) magEl.textContent = String(w.mag);
+      slot.classList.toggle('empty', w.ammo === 0);
+    }
+    this.setWeapon(index);
+  }
+
+  setMap(name) {
+    this.tx(this.mapEl, name);
+  }
+
+  setFps(fps) {
+    this.tx(this.fpsEl, `${fps}`);
+  }
+
+  setQualityLabel(mode) {
+    this.tx(this.qualityEl, mode.toUpperCase());
   }
 
   setDash(ready01) {
