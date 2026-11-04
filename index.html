@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#04060d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>SLIPSTREAM — Neon Arena Shooter</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- ================= HUD ================= -->
+    <div id="hud">
+      <div id="crosshair">
+        <div class="ch t"></div>
+        <div class="ch b"></div>
+        <div class="ch l"></div>
+        <div class="ch r"></div>
+        <div class="ch-dot"></div>
+      </div>
+      <div id="hitmarker">
+        <i></i><i></i><i></i><i></i>
+      </div>
+      <div id="pops"></div>
+      <div id="edge-glow"></div>
+      <div id="damage-vignette"></div>
+      <div id="flash"></div>
+
+      <div class="hud-corner tl">
+        <div class="stat-block">
+          <div class="label">SCORE</div>
+          <div class="value" id="score-num">0</div>
+        </div>
+        <div class="stat-sub">BEST <span id="best-num">0</span></div>
+      </div>
+
+      <div class="hud-corner tc">
+        <div class="wave-label">WAVE</div>
+        <div class="wave-value" id="wave-num">1</div>
+        <div class="wave-left"><span id="wave-left">0</span> HOSTILES</div>
+      </div>
+
+      <div class="hud-corner tr">
+        <div class="combo" id="combo">
+          <div class="combo-mult" id="combo-mult">x1.0</div>
+          <div class="combo-label">CHAIN <b id="combo-num">0</b></div>
+          <div class="combo-track"><div class="combo-fill" id="combo-fill"></div></div>
+        </div>
+      </div>
+
+      <div class="hud-bottom-left">
+        <div class="vitals">
+          <div class="vitals-head">
+            <span class="label">INTEGRITY</span>
+            <span class="num"><b id="hp-num">100</b></span>
+          </div>
+          <div class="bar"><div class="bar-fill hp" id="hp-fill"></div></div>
+        </div>
+        <div class="speedo">
+          <div class="speedo-val"><b id="speed-num">0</b><span>M/S</span></div>
+          <div class="bar slim"><div class="bar-fill spd" id="speed-fill"></div></div>
+        </div>
+      </div>
+
+      <div class="hud-bottom-center">
+        <div class="dash-wrap">
+          <div class="dash-ring" id="dash-ring"></div>
+          <div class="dash-label">DASH</div>
+          <div class="dash-key">SHIFT</div>
+        </div>
+      </div>
+
+      <div class="hud-bottom-right">
+        <div class="ammo">
+          <div class="ammo-row">
+            <span id="ammo-cur">30</span><span class="ammo-sep">/</span><span id="ammo-mag">30</span>
+          </div>
+          <div class="ammo-pips" id="ammo-pips"></div>
+          <div class="ammo-tag" id="reload-tag">VX-9 ARC RIFLE</div>
+        </div>
+      </div>
+
+      <div id="hint">
+        <span><b>SPACE</b> JUMP · HOLD TO BHOP</span>
+        <span><b>A / D</b> + TURN TO AIR-STRAFE</span>
+        <span><b>SHIFT</b> DASH</span>
+      </div>
+
+      <div id="lock-notice">MOUSE CAPTURE BLOCKED · MOVE MOUSE TO AIM · OPEN THIS PAGE IN A NEW TAB FOR FULL CONTROL</div>
+
+      <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+    </div>
+
+    <!-- ================= TOUCH CONTROLS ================= -->
+    <div id="touch-ui" class="hidden">
+      <div id="look-zone"></div>
+      <div id="stick-zone">
+        <div id="stick-base"><div id="stick-knob"></div></div>
+      </div>
+      <div id="touch-buttons">
+        <button type="button" id="tb-pause" class="tbtn mini" aria-label="Pause">II</button>
+        <button type="button" id="tb-reload" class="tbtn small" aria-label="Reload">R</button>
+        <button type="button" id="tb-aim" class="tbtn small" aria-label="Focus aim">AIM</button>
+        <button type="button" id="tb-dash" class="tbtn medium" aria-label="Dash">DASH</button>
+        <button type="button" id="tb-jump" class="tbtn medium" aria-label="Jump">JUMP</button>
+        <button type="button" id="tb-fire" class="tbtn fire" aria-label="Fire">FIRE</button>
+      </div>
+      <div id="rotate-hint">ROTATE FOR THE FULL ARENA</div>
+    </div>
+
+    <!-- ================= SCREENS ================= -->
+    <div id="screen-start" class="screen">
+      <div class="start-inner">
+        <div class="eyebrow">NEON ARENA · MOVEMENT SHOOTER</div>
+        <h1 class="title">SLIP<span>STREAM</span></h1>
+        <p class="tagline">Keep your speed. Chain your jumps. Vaporize the swarm.</p>
+        <p class="tagline touch-only">Stick to move · drag to aim · hold FIRE. Best in landscape.</p>
+        <button id="btn-start" class="cta">CLICK TO JACK IN</button>
+        <div class="controls controls-desktop">
+          <div><kbd>W A S D</kbd><span>MOVE</span></div>
+          <div><kbd>SPACE</kbd><span>JUMP / HOLD = BHOP</span></div>
+          <div><kbd>SHIFT</kbd><span>DASH</span></div>
+          <div><kbd>CTRL</kbd><span>SLIDE</span></div>
+          <div><kbd>LMB</kbd><span>FIRE</span></div>
+          <div><kbd>RMB</kbd><span>FOCUS AIM</span></div>
+          <div><kbd>R</kbd><span>RELOAD</span></div>
+          <div><kbd>ESC</kbd><span>PAUSE</span></div>
+        </div>
+        <div class="controls controls-touch">
+          <div><kbd>STICK</kbd><span>MOVE</span></div>
+          <div><kbd>DRAG</kbd><span>LOOK / AIM</span></div>
+          <div><kbd>FIRE</kbd><span>HOLD TO SHOOT</span></div>
+          <div><kbd>JUMP</kbd><span>HOLD TO BHOP</span></div>
+          <div><kbd>DASH</kbd><span>BURST OF SPEED</span></div>
+          <div><kbd>AIM</kbd><span>FOCUS FIRE</span></div>
+          <div><kbd>R</kbd><span>RELOAD</span></div>
+          <div><kbd>II</kbd><span>PAUSE</span></div>
+        </div>
+        <div class="hintline">Hold <b>A</b> or <b>D</b> while turning in the air to gain speed. Momentum is the weapon.</div>
+        <div class="best-line">BEST SCORE <b id="start-best">0</b></div>
+      </div>
+    </div>
+
+    <div id="screen-pause" class="screen hidden">
+      <div class="panel">
+        <div class="eyebrow">SYSTEM HALT</div>
+        <h2>PAUSED</h2>
+        <button id="btn-resume" class="cta small">RESUME</button>
+        <div class="settings">
+          <label>
+            <span>MOUSE SENSITIVITY</span>
+            <input id="sens" type="range" min="5" max="60" value="22" />
+            <b id="sens-val">0.22</b>
+          </label>
+          <label>
+            <span>VOLUME</span>
+            <input id="vol" type="range" min="0" max="100" value="70" />
+            <b id="vol-val">70</b>
+          </label>
+        </div>
+        <div class="keys">WASD move · SPACE bhop · CTRL slide · SHIFT dash · LMB fire · RMB focus · R reload</div>
+      </div>
+    </div>
+
+    <div id="screen-over" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">SIGNAL LOST</div>
+        <h2 class="over-title">RUN TERMINATED</h2>
+        <div class="stats">
+          <div><span id="over-score">0</span><em>SCORE</em></div>
+          <div><span id="over-wave">1</span><em>WAVE</em></div>
+          <div><span id="over-kills">0</span><em>KILLS</em></div>
+          <div><span id="over-acc">0%</span><em>ACCURACY</em></div>
+          <div><span id="over-speed">0</span><em>TOP M/S</em></div>
+        </div>
+        <button id="btn-restart" class="cta">RUN IT BACK</button>
+        <div class="keys restart-hint">Press <b>R</b> to restart</div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
