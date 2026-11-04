@@ -3,12 +3,13 @@
 A browser-based 3D arena shooter built around movement: Quake-style air control,
 auto-bunnyhop, dashes, slides and jump pads, all wrapped in a neon arena with
 fully procedural audio. Built with Three.js and Vite, playable with keyboard and
-mouse or with touch controls on a phone.
+mouse or with touch controls on a phone, solo or in an online squad of up to four.
 
 **Play it:** https://uxp70.github.io/slipstream/
 
 Pick one of three arenas on the start screen, then fight through waves with four
-distinct weapons and an instant weapon switch.
+distinct weapons and an instant weapon switch. Create a squad to bring up to
+three other players into the same wave.
 
 ## Movement
 
@@ -64,6 +65,33 @@ shapes:
 
 Each arena brings its own collider set, spawn ring, fog colour and jump-pad
 placement; the start screen shows a blurb for the selected map.
+
+## Squad co-op (online)
+
+Up to four players fight the same wave together. The host presses **CREATE
+SQUAD** on the start screen and gets a five-character code (or **COPY LINK**,
+which puts the code in the URL hash so it is one tap to join). Everyone else
+types the code, presses **JOIN SQUAD**, then **ENTER ARENA**.
+
+- **Host authority.** The host's browser owns the enemy wave, damage and scoring
+  for the whole squad. Guests simulate their own movement locally so aiming and
+  strafing stay responsive at any ping, and report their hits; the host decides
+  what dies and broadcasts the wave, the score and everyone's health.
+- **Peer-to-peer.** There is no game server. The public PeerJS broker is used
+  only to exchange WebRTC offers; after that every packet travels directly
+  between browsers. That is what lets co-op run on plain static hosting.
+- **Downed, not dead.** A downed player rebuilds after about 3.5 seconds at their
+  team spawn instead of ending the run, and the squad only advances to the next
+  wave when the host clears the current one.
+- **Mid-run escape.** `LEAVE SQUAD` lives in the pause panel, because the start
+  screen is hidden while a run is live.
+- **Room codes** use 20 unambiguous characters (no `I`, `O`, `0` or `1`), and the
+  transport retries if a code is already taken.
+
+Both peers need WebRTC, which every current desktop and mobile browser supports;
+a symmetric NAT or a restrictive corporate firewall can still block the direct
+link. All players should be on the same client version, because the snapshot
+protocol is not versioned.
 
 ## Graphics quality
 
@@ -122,6 +150,7 @@ Touch is a first-class input, not a shim:
 | Weapon 1–4 | `1`–`4` / wheel | tap strip slot |
 | Next weapon | `Q` / wheel | tap strip slot |
 | Pause | `Esc` | pause tile |
+| Leave squad | — | pause panel |
 
 ## Run locally
 
@@ -153,11 +182,14 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/maps.js` | The three arena layouts |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
 | `src/enemies.js` | Waves, AI steering, projectiles, pickups, radius damage |
+| `src/net.js` | PeerJS transport: room codes, hosting, dialling, packets |
+| `src/remote.js` | Teammate avatars, interpolation and name tags |
+| `src/squad.js` | Co-op orchestration: roles, roster, snapshots, respawns |
 | `src/effects.js` | Particles, tracers, rings, screen shake sources |
 | `src/hud.js` | HUD updates, weapon strip, map label, FPS readout, banners |
 | `src/audio.js` | Procedural Web Audio engine |
 | `src/style.css` | Base HUD and screens |
-| `src/ui.css` | Weapon strip, map picker and quality controls |
+| `src/ui.css` | Weapon strip, map picker, quality controls and squad panel |
 | `src/touch.css` | Touch layout overrides and portrait handling |
 
 ## Performance
@@ -175,7 +207,11 @@ the active mode on the start screen.
   damage, FRAMES/AUTO quality behaviour, draw-call budget, and console error
   checks on desktop and touch.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
-  390×844 portrait, plus a desktop regression run) checks stick movement, look
+  390×844 portrait, plus a desktop regression run) checking stick movement, look
   deltas, firing, reload, jump, dash cooldown, pause/resume, portrait FOV, weapon
   strip hit targets and that no control overlaps another.
+- `test/squad.mjs`: two headless clients through the real broker — one hosts,
+  the other joins by code, and the test checks the handshake, teammate
+  replication, shared waves and score, guest hit reporting and a clean leave with
+  no console errors on either side.
 - `npm run build` completes and the Pages workflow publishes `dist/`.
