@@ -1,0 +1,226 @@
+/* ===================== WEAPONS / MAPS / QUALITY ===================== */
+
+.perf-line {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: rgba(150, 200, 215, 0.34);
+}
+.perf-line span {
+  color: rgba(120, 240, 255, 0.7);
+}
+
+#weapon-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+
+.wslot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 168px;
+  padding: 4px 7px;
+  background: rgba(10, 18, 28, 0.55);
+  border: 1px solid rgba(99, 245, 255, 0.12);
+  color: rgba(170, 210, 225, 0.5);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-align: right;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.1s linear, border-color 0.1s linear, color 0.1s linear;
+}
+.wslot b {
+  font-size: 8px;
+  color: rgba(120, 240, 255, 0.55);
+  width: 8px;
+  text-align: left;
+}
+.wslot .wname {
+  flex: 1;
+  text-align: left;
+  letter-spacing: 0.18em;
+}
+.wslot .wcount {
+  font-variant-numeric: tabular-nums;
+  color: rgba(190, 225, 235, 0.65);
+}
+.wslot .wammo {
+  color: rgba(230, 250, 255, 0.9);
+}
+.wslot.active {
+  background: rgba(24, 82, 104, 0.72);
+  border-color: rgba(99, 245, 255, 0.68);
+  color: #eafcff;
+  box-shadow: 0 0 18px rgba(99, 245, 255, 0.22);
+}
+.wslot.active b {
+  color: var(--cyan);
+}
+.wslot.empty .wammo {
+  color: var(--red);
+}
+
+#ammo-cur.low {
+  color: var(--red);
+  text-shadow: 0 0 18px rgba(255, 59, 97, 0.6);
+}
+
+.map-picker {
+  margin-top: 26px;
+}
+
+.picker-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.38em;
+  color: rgba(150, 200, 215, 0.5);
+  margin-bottom: 9px;
+}
+
+.map-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: min(560px, 90vw);
+  margin: 0 auto;
+}
+
+.map-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 8px;
+  background: rgba(10, 20, 32, 0.6);
+  border: 1px solid rgba(99, 245, 255, 0.16);
+  color: rgba(200, 230, 240, 0.6);
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.map-card b {
+  font-family: var(--font);
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: #eafcff;
+}
+.map-card span {
+  font-size: 7.5px;
+  letter-spacing: 0.2em;
+  color: rgba(150, 200, 215, 0.45);
+}
+.map-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 245, 255, 0.4);
+}
+.map-card.sel {
+  background: rgba(24, 82, 104, 0.55);
+  border-color: var(--cyan);
+  box-shadow: 0 0 26px rgba(99, 245, 255, 0.22);
+}
+.map-card.sel b {
+  color: var(--cyan);
+}
+
+.map-blurb {
+  margin-top: 9px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: rgba(170, 210, 225, 0.45);
+}
+
+.graphics-row {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.graphics-row .picker-label {
+  margin: 0 4px 0 0;
+}
+
+.qbtn {
+  padding: 5px 11px;
+  background: rgba(10, 20, 32, 0.6);
+  border: 1px solid rgba(99, 245, 255, 0.16);
+  color: rgba(180, 215, 228, 0.6);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+}
+.qbtn.sel {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(24, 82, 104, 0.5);
+}
+
+/* touch: the strip leaves the corner block so it never sits under the fire
+   cluster; it becomes a bottom-centre row in landscape and a right-hand column
+   in portrait (see touch.css). */
+body.touch #weapon-strip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--pad-b) + 6px);
+  transform: translateX(-50%);
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+body.touch .wslot {
+  width: 100px;
+  min-height: 34px;
+  padding: 6px 7px;
+}
+
+body.touch .wslot .wname {
+  letter-spacing: 0.1em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+@media (max-height: 480px) {
+  .map-picker {
+    margin-top: 14px;
+  }
+  .map-cards {
+    gap: 6px;
+  }
+  .map-card {
+    padding: 7px 6px;
+  }
+  .map-blurb {
+    display: none;
+  }
+  .graphics-row {
+    margin-top: 10px;
+  }
+}
+
+@media (orientation: portrait) {
+  .map-cards {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    width: min(260px, 80vw);
+  }
+  .map-card {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 12px;
+  }
+  body.touch .wslot {
+    width: 118px;
+    min-height: 30px;
+  }
+}
