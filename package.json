@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "SLIPSTREAM — a neon arena movement shooter built with Three.js",
+  "description": "SLIPSTREAM — a neon arena movement shooter with online squad co-op, built with Three.js",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 3000"
   },
   "dependencies": {
+    "peerjs": "^1.5.5",
     "three": "0.180.0"
   },
   "devDependencies": {
