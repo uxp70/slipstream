@@ -1,79 +1,208 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { MAPS, MAP_BUILDERS } from './maps.js';
 
 // Arena geometry + collision AABBs + ray queries against the level.
+// Static solids are merged into three batches (bodies, neon edges, glowing
+// caps), so an entire arena is three draw calls instead of ~150.
+export { MAPS };
+
+const EDGE_INDEX = [
+  [0, 1], [1, 3], [3, 2], [2, 0],
+  [4, 5], [5, 7], [7, 6], [6, 4],
+  [0, 4], [1, 5], [2, 6], [3, 7],
+];
+
 export class World {
   constructor(scene) {
     this.scene = scene;
+    this.V3 = THREE.Vector3;
     this.colliders = [];
     this.spawnPoints = [];
     this.pads = [];
     this.decor = [];
     this.bounds = 43;
     this.time = 0;
+    this.mapId = 'circuit';
+    this.startPos = new THREE.Vector3(0, 1.2, 30);
+
+    this.root = new THREE.Group();
+    this.scene.add(this.root);
+
+    this.boxes = [];
+    this.bodyMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x0a1c30 });
+    this.edgeMat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.36,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.capMat = new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.24,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.merged = [];
+    this.decorMeshes = [];
 
     this.buildSky();
     this.buildFloor();
-    this.buildArena();
-    this.buildPads();
-    this.buildDecor();
-    this.buildSpawns();
     this.buildLights();
+    this.build('circuit');
   }
 
+  // ------------------------------------------------------------------ statics
   solid(cx, yBottom, cz, w, h, d, opts = {}) {
-    const group = new THREE.Group();
-    const geo = new THREE.BoxGeometry(w, h, d);
-    const mat = new THREE.MeshStandardMaterial({
+    this.boxes.push({
+      cx, y: yBottom, cz, w, h, d,
       color: opts.color ?? 0x1b2a42,
-      roughness: opts.roughness ?? 0.58,
-      metalness: 0.22,
-      emissive: opts.emissive ?? 0x0a1c30,
-      emissiveIntensity: opts.emissiveIntensity ?? 1.15,
+      edge: opts.edge ?? 0x4fe6ff,
+      cap: opts.cap ?? 0x2ba9c4,
+      capOpacity: opts.capOpacity ?? 0.18,
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(0, 0, 0);
-    group.add(mesh);
-
-    // neon edge outline
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geo),
-      new THREE.LineBasicMaterial({
-        color: opts.edge ?? 0x4fe6ff,
-        transparent: true,
-        opacity: opts.edgeOpacity ?? 0.3,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    group.add(edges);
-
-    // glowing cap so platforms read clearly at speed
-    if (h > 0.5) {
-      const cap = new THREE.Mesh(
-        new THREE.PlaneGeometry(w * 0.94, d * 0.94),
-        new THREE.MeshBasicMaterial({
-          color: opts.cap ?? 0x2ba9c4,
-          transparent: true,
-          opacity: opts.capOpacity ?? 0.18,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      cap.rotation.x = -Math.PI / 2;
-      cap.position.y = h / 2 + 0.012;
-      group.add(cap);
-    }
-
-    group.position.set(cx, yBottom + h / 2, cz);
-    this.scene.add(group);
-
     this.colliders.push({
       min: new THREE.Vector3(cx - w / 2, yBottom, cz - d / 2),
       max: new THREE.Vector3(cx + w / 2, yBottom + h, cz + d / 2),
     });
-    return group;
   }
 
+  wallRing(bounds, height, opts) {
+    const b = bounds;
+    this.solid(0, 0, -b, b * 2 + 4, height, 1.4, opts);
+    this.solid(0, 0, b, b * 2 + 4, height, 1.4, opts);
+    this.solid(-b, 0, 0, 1.4, height, b * 2 + 4, opts);
+    this.solid(b, 0, 0, 1.4, height, b * 2 + 4, opts);
+  }
+
+  horizonStrips(bounds, height) {
+    const stripMat =
+      this.stripMat ||
+      (this.stripMat = new THREE.MeshBasicMaterial({
+        color: 0x2ce0ff,
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }));
+    for (const [x, z, w, d] of [
+      [0, -bounds + 0.8, bounds * 2 - 2, 0.12],
+      [0, bounds - 0.8, bounds * 2 - 2, 0.12],
+      [-bounds + 0.8, 0, 0.12, bounds * 2 - 2],
+      [bounds - 0.8, 0, 0.12, bounds * 2 - 2],
+    ]) {
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, d), stripMat);
+      strip.position.set(x, height, z);
+      strip.matrixAutoUpdate = false;
+      strip.updateMatrix();
+      this.root.add(strip);
+    }
+  }
+
+  // merge every box into three batched meshes
+  bake() {
+    const bodies = [];
+    const edgePos = [];
+    const edgeCol = [];
+    const caps = [];
+    const c = new THREE.Color();
+
+    for (const b of this.boxes) {
+      const geo = new THREE.BoxGeometry(b.w, b.h, b.d);
+      geo.translate(b.cx, b.y + b.h / 2, b.cz);
+      const n = geo.attributes.position.count;
+      c.set(b.color);
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        col[i * 3] = c.r;
+        col[i * 3 + 1] = c.g;
+        col[i * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      bodies.push(geo);
+
+      const x0 = b.cx - b.w / 2;
+      const x1 = b.cx + b.w / 2;
+      const y0 = b.y;
+      const y1 = b.y + b.h;
+      const z0 = b.cz - b.d / 2;
+      const z1 = b.cz + b.d / 2;
+      const corners = [
+        [x0, y0, z0], [x1, y0, z0], [x0, y0, z1], [x1, y0, z1],
+        [x0, y1, z0], [x1, y1, z0], [x0, y1, z1], [x1, y1, z1],
+      ];
+      c.set(b.edge);
+      for (const [a, bb] of EDGE_INDEX) {
+        const p = corners[a];
+        const q = corners[bb];
+        edgePos.push(p[0], p[1], p[2], q[0], q[1], q[2]);
+        for (let i = 0; i < 2; i++) edgeCol.push(c.r, c.g, c.b);
+      }
+
+      if (b.h > 0.5 && b.capOpacity > 0.02) {
+        const cap = new THREE.PlaneGeometry(b.w * 0.94, b.d * 0.94);
+        cap.rotateX(-Math.PI / 2);
+        cap.translate(b.cx, b.y + b.h + 0.012, b.cz);
+        const cn = cap.attributes.position.count;
+        c.set(b.cap);
+        const ca = new Float32Array(cn * 3);
+        for (let i = 0; i < cn; i++) {
+          ca[i * 3] = c.r * b.capOpacity * 4;
+          ca[i * 3 + 1] = c.g * b.capOpacity * 4;
+          ca[i * 3 + 2] = c.b * b.capOpacity * 4;
+        }
+        cap.setAttribute('color', new THREE.BufferAttribute(ca, 3));
+        caps.push(cap);
+      }
+    }
+
+    if (bodies.length) {
+      const merged = mergeGeometries(bodies, false);
+      bodies.forEach((g) => g.dispose());
+      const mesh = new THREE.Mesh(merged, this.bodyMat);
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      this.root.add(mesh);
+      this.merged.push(merged);
+    }
+
+    if (edgePos.length) {
+      const eg = new THREE.BufferGeometry();
+      eg.setAttribute('position', new THREE.Float32BufferAttribute(edgePos, 3));
+      eg.setAttribute('color', new THREE.Float32BufferAttribute(edgeCol, 3));
+      const lines = new THREE.LineSegments(eg, this.edgeMat);
+      lines.matrixAutoUpdate = false;
+      lines.updateMatrix();
+      this.root.add(lines);
+      this.merged.push(eg);
+    }
+
+    if (caps.length) {
+      const mergedCaps = mergeGeometries(caps, false);
+      caps.forEach((g) => g.dispose());
+      const mesh = new THREE.Mesh(mergedCaps, this.capMat);
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      this.root.add(mesh);
+      this.merged.push(mergedCaps);
+    }
+  }
+
+  clear() {
+    this.root.clear();
+    for (const g of this.merged) g.dispose();
+    this.merged = [];
+    this.decorMeshes = [];
+    this.colliders = [];
+    this.spawnPoints = [];
+    this.pads = [];
+    this.decor = [];
+    this.boxes = [];
+  }
+
+  // --------------------------------------------------------------- sky/floor
   buildSky() {
     const geo = new THREE.SphereGeometry(280, 32, 20);
     const mat = new THREE.ShaderMaterial({
@@ -97,17 +226,19 @@ export class World {
         uniform vec3 glow;
         varying vec3 vPos;
         void main() {
-          float h = clamp(normalize(vPos).y * 0.5 + 0.5, 0.0, 1.0);
+          vec3 n = normalize(vPos);
+          float h = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
           vec3 col = mix(bottom, top, pow(h, 0.9));
-          float horizon = pow(1.0 - abs(normalize(vPos).y), 9.0);
+          float horizon = pow(1.0 - abs(n.y), 9.0);
           col += glow * horizon * 0.55;
           gl_FragColor = vec4(col, 1.0);
         }
       `,
     });
-    this.scene.add(new THREE.Mesh(geo, mat));
+    this.sky = new THREE.Mesh(geo, mat);
+    this.sky.frustumCulled = false;
+    this.scene.add(this.sky);
 
-    // star field
     const count = 900;
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
@@ -138,7 +269,9 @@ export class World {
       blending: THREE.AdditiveBlending,
       fog: false,
     });
-    this.scene.add(new THREE.Points(g, m));
+    this.stars = new THREE.Points(g, m);
+    this.stars.frustumCulled = false;
+    this.scene.add(this.stars);
   }
 
   buildFloor() {
@@ -147,210 +280,12 @@ export class World {
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(12, 12);
     tex.anisotropy = 4;
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 120),
-      new THREE.MeshBasicMaterial({ map: tex, fog: true })
-    );
-    floor.rotation.x = -Math.PI / 2;
-    this.scene.add(floor);
-    this.grid = null;
-
-    // arena boundary walls (outside playable space, but visible)
-    const wallOpts = { color: 0x0a1220, emissive: 0x06101e, edge: 0x2ad4ff, edgeOpacity: 0.35 };
-    this.solid(0, 0, -46, 96, 18, 1.4, wallOpts);
-    this.solid(0, 0, 46, 96, 18, 1.4, wallOpts);
-    this.solid(-46, 0, 0, 1.4, 18, 96, wallOpts);
-    this.solid(46, 0, 0, 1.4, 18, 96, wallOpts);
-
-    // glowing horizon strips on the walls
-    const stripMat = new THREE.MeshBasicMaterial({
-      color: 0x2ce0ff,
-      transparent: true,
-      opacity: 0.55,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    for (const [x, z, w, d] of [
-      [0, -45.2, 92, 0.12],
-      [0, 45.2, 92, 0.12],
-      [-45.2, 0, 0.12, 92],
-      [45.2, 0, 0.12, 92],
-    ]) {
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(w, 0.2, d), stripMat);
-      strip.position.set(x, 15.5, z);
-      this.scene.add(strip);
-    }
-  }
-
-  buildArena() {
-    const std = { color: 0x111c30, emissive: 0x07172a, edge: 0x3fe4ff, edgeOpacity: 0.4 };
-
-    // central elevated platform + its approach blocks
-    this.solid(0, 2.7, 0, 13, 0.75, 13, { ...std, cap: 0x1e8aa8, capOpacity: 0.3 });
-    this.solid(0, 0, 0, 3.4, 2.7, 3.4, { color: 0x0d1626, edge: 0x2fbfe0, edgeOpacity: 0.3 });
-
-    this.solid(-9.5, 0, -9.5, 4.4, 1.35, 4.4, std);
-    this.solid(9.5, 0, -9.5, 4.4, 1.35, 4.4, std);
-    this.solid(-9.5, 0, 9.5, 4.4, 1.35, 4.4, std);
-    this.solid(9.5, 0, 9.5, 4.4, 1.35, 4.4, std);
-
-    // mid cover blocks
-    this.solid(-9.5, 0, 0, 3.4, 2.65, 2.2, { ...std, edge: 0xff4fd8, edgeOpacity: 0.25 });
-    this.solid(9.5, 0, 0, 3.4, 2.65, 2.2, { ...std, edge: 0xff4fd8, edgeOpacity: 0.25 });
-    this.solid(0, 0, -9.5, 2.2, 2.65, 3.4, std);
-    this.solid(0, 0, 9.5, 2.2, 2.65, 3.4, std);
-
-    // long strafe walls
-    this.solid(-27, 0, 0, 1.5, 3.1, 20, { ...std, cap: 0x1a5f78 });
-    this.solid(27, 0, 0, 1.5, 3.1, 20, { ...std, cap: 0x1a5f78 });
-
-    // tall pillars for cover and line-of-sight breaks
-    for (const [x, z] of [
-      [-19, -19],
-      [19, -19],
-      [-19, 19],
-      [19, 19],
-    ]) {
-      this.solid(x, 0, z, 1.8, 8.5, 1.8, { ...std, edge: 0xffc063, edgeOpacity: 0.22 });
-    }
-
-    // outer cover ring
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      const r = 33;
-      const h = i % 3 === 0 ? 4.4 : 2.4;
-      this.solid(Math.cos(a) * r, 0, Math.sin(a) * r, 2.4, h, 2.4, {
-        ...std,
-        edge: i % 2 ? 0x3fe4ff : 0xff4fd8,
-        edgeOpacity: 0.28,
-      });
-    }
-
-    // floating platforms (reachable via launch pads)
-    const float = { color: 0x0f1a2b, emissive: 0x09203a, edge: 0x63f5ff, edgeOpacity: 0.5, cap: 0x2fa5c4, capOpacity: 0.35 };
-    this.solid(-20, 6.0, -22, 7.5, 0.6, 7.5, float);
-    this.solid(20, 7.0, 20, 8, 0.6, 8, float);
-    this.solid(0, 7.2, -27, 9, 0.6, 6, float);
-    this.solid(-24, 7.6, 22, 6, 0.6, 6, { ...float, edge: 0xff4fd8 });
-
-    // low ramps/ledges for slide practice
-    this.solid(0, 0, 23, 16, 0.55, 6, { ...std, capOpacity: 0.18 });
-    this.solid(0, 0, -23, 16, 0.55, 6, { ...std, capOpacity: 0.18 });
-  }
-
-  buildPads() {
-    const spots = [
-      [-33, 0, -33],
-      [33, 0, -33],
-      [-33, 0, 33],
-      [33, 0, 33],
-      [0, 0, -36],
-      [0, 0, 36],
-    ];
-    const ringGeo = new THREE.RingGeometry(1.28, 1.6, 40);
-    const discGeo = new THREE.CylinderGeometry(1.5, 1.7, 0.18, 32);
-    for (const [x, y, z] of spots) {
-      const group = new THREE.Group();
-      const disc = new THREE.Mesh(
-        discGeo,
-        new THREE.MeshStandardMaterial({
-          color: 0x2a1a0a,
-          emissive: 0xffa63c,
-          emissiveIntensity: 1.4,
-          roughness: 0.4,
-          metalness: 0.6,
-        })
-      );
-      disc.position.y = 0.09;
-      group.add(disc);
-
-      const ring = new THREE.Mesh(
-        ringGeo,
-        new THREE.MeshBasicMaterial({
-          color: 0xffc063,
-          transparent: true,
-          opacity: 0.85,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.26;
-      group.add(ring);
-
-      // vertical light column
-      const column = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.95, 1.15, 6, 20, 1, true),
-        new THREE.MeshBasicMaterial({
-          color: 0xffa63c,
-          transparent: true,
-          opacity: 0.05,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      column.position.y = 3;
-      group.add(column);
-
-      group.position.set(x, y, z);
-      this.scene.add(group);
-      this.pads.push({
-        group,
-        ring,
-        column,
-        pos: new THREE.Vector3(x, y, z),
-        radius: 1.85,
-        power: 20.5,
-        cooldown: 0,
-      });
-    }
-  }
-
-  buildDecor() {
-    // floating monoliths in the distance
-    for (let i = 0; i < 14; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = 70 + Math.random() * 60;
-      const h = 6 + Math.random() * 26;
-      const geo = new THREE.BoxGeometry(2 + Math.random() * 5, h, 2 + Math.random() * 5);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x0a1220,
-        emissive: 0x081a2e,
-        emissiveIntensity: 1,
-        roughness: 0.7,
-        metalness: 0.5,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(Math.cos(a) * r, h / 2 - 6 + Math.random() * 10, Math.sin(a) * r);
-      mesh.rotation.y = Math.random() * Math.PI;
-      this.scene.add(mesh);
-
-      const edge = new THREE.LineSegments(
-        new THREE.EdgesGeometry(geo),
-        new THREE.LineBasicMaterial({
-          color: i % 3 === 0 ? 0xff4fd8 : 0x3fe4ff,
-          transparent: true,
-          opacity: 0.2,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      edge.position.copy(mesh.position);
-      edge.rotation.copy(mesh.rotation);
-      this.scene.add(edge);
-      this.decor.push({ mesh, edge, spin: (Math.random() - 0.5) * 0.02, phase: Math.random() * 6.28 });
-    }
-
-  }
-
-  buildSpawns() {
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      const r = 37;
-      this.spawnPoints.push(new THREE.Vector3(Math.cos(a) * r, 0.2, Math.sin(a) * r));
-    }
+    this.floorMat = new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff });
+    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(130, 130), this.floorMat);
+    this.floor.rotation.x = -Math.PI / 2;
+    this.floor.matrixAutoUpdate = false;
+    this.floor.updateMatrix();
+    this.scene.add(this.floor);
   }
 
   buildLights() {
@@ -374,6 +309,114 @@ export class World {
     this.coreLight = core;
   }
 
+  // ---------------------------------------------------------------- map build
+  build(id) {
+    const map = MAPS.find((m) => m.id === id) || MAPS[0];
+    this.clear();
+    this.mapId = map.id;
+    this.bounds = 43;
+
+    const builder = MAP_BUILDERS[map.id] || MAP_BUILDERS.circuit;
+    builder(this);
+
+    this.buildPads();
+    this.buildDecor();
+    this.bake();
+    this.resetPads();
+    return map;
+  }
+
+  // ------------------------------------------------------------------- extras
+  buildPads() {
+    const ringGeo = this.padRingGeo || (this.padRingGeo = new THREE.RingGeometry(1.28, 1.6, 40));
+    const discGeo = this.padDiscGeo || (this.padDiscGeo = new THREE.CylinderGeometry(1.5, 1.7, 0.18, 32));
+    const colGeo = this.padColGeo || (this.padColGeo = new THREE.CylinderGeometry(0.95, 1.15, 6, 20, 1, true));
+    const discMat =
+      this.padDiscMat ||
+      (this.padDiscMat = new THREE.MeshStandardMaterial({
+        color: 0x2a1a0a,
+        emissive: 0xffa63c,
+        emissiveIntensity: 1.4,
+        roughness: 0.4,
+        metalness: 0.6,
+      }));
+
+    for (const [x, z] of this.padSpots || []) {
+      const group = new THREE.Group();
+      const disc = new THREE.Mesh(discGeo, discMat);
+      disc.position.y = 0.09;
+      group.add(disc);
+
+      const ring = new THREE.Mesh(
+        ringGeo,
+        new THREE.MeshBasicMaterial({
+          color: 0xffc063,
+          transparent: true,
+          opacity: 0.85,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.26;
+      group.add(ring);
+
+      const column = new THREE.Mesh(
+        colGeo,
+        new THREE.MeshBasicMaterial({
+          color: 0xffa63c,
+          transparent: true,
+          opacity: 0.06,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      column.position.y = 3;
+      group.add(column);
+
+      group.position.set(x, 0, z);
+      this.root.add(group);
+      this.pads.push({
+        group, ring, column,
+        pos: new THREE.Vector3(x, 0, z),
+        radius: 1.85,
+        power: 20.5,
+        cooldown: 0,
+      });
+    }
+  }
+
+  buildDecor() {
+    const geo = this.decorGeo || (this.decorGeo = new THREE.BoxGeometry(1, 1, 1));
+    const mat = this.decorMat || (this.decorMat = new THREE.MeshBasicMaterial({ color: 0x0a1424 }));
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 70 + Math.random() * 60;
+      const h = 6 + Math.random() * 26;
+      const w = 2 + Math.random() * 5;
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.scale.set(w, h, w * (0.7 + Math.random() * 0.6));
+      mesh.position.set(Math.cos(a) * r, h / 2 - 6 + Math.random() * 10, Math.sin(a) * r);
+      mesh.rotation.y = Math.random() * Math.PI;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      this.root.add(mesh);
+      this.decorMeshes.push(mesh);
+      this.decor.push({ mesh, spin: (Math.random() - 0.5) * 0.02 });
+    }
+  }
+
+  buildSpawns(radius, count) {
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      this.spawnPoints.push(
+        new THREE.Vector3(Math.cos(a) * radius, 0.2 + (i % 4 === 0 ? 2.2 : 0), Math.sin(a) * radius)
+      );
+    }
+  }
+
   resetPads() {
     for (const p of this.pads) p.cooldown = 0;
   }
@@ -381,10 +424,9 @@ export class World {
   update(dt, time) {
     this.time = time;
     for (const d of this.decor) {
-      if (d.spin) d.mesh.rotation.y += d.spin * dt * 10;
-      if (d.mesh.rotation.x !== undefined && d.spin && Math.abs(d.spin) < 0.05) {
-        d.mesh.rotation.z += d.spin * dt;
-      }
+      if (!d.spin) continue;
+      d.mesh.rotation.y += d.spin * dt * 10;
+      d.mesh.updateMatrix();
     }
     for (const p of this.pads) {
       p.cooldown = Math.max(0, p.cooldown - dt);
@@ -452,12 +494,7 @@ function makeGridTexture() {
 
   ctx.shadowBlur = 6;
   ctx.fillStyle = 'rgba(200,255,255,0.65)';
-  for (const [x, y] of [
-    [0, 0],
-    [size, 0],
-    [0, size],
-    [size, size],
-  ]) {
+  for (const [x, y] of [[0, 0], [size, 0], [0, size], [size, size]]) {
     ctx.beginPath();
     ctx.arc(x, y, 2.2, 0, Math.PI * 2);
     ctx.fill();
