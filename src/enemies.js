@@ -247,6 +247,20 @@ export class EnemyManager {
     return { killed: false, score: 0, type: enemy.type };
   }
 
+  // Splash damage for explosive weapons. Returns the list of hits so the game
+  // can score them through the same path as direct hits.
+  damageRadius(point, radius, damage, exclude = null) {
+    const out = [];
+    for (const e of this.list) {
+      if (e.dead || e === exclude) continue;
+      const d = e.pos.distanceTo(point) - e.radius * 0.6;
+      if (d > radius) continue;
+      const falloff = Math.max(0.25, 1 - Math.max(0, d) / radius);
+      out.push({ enemy: e, damage: damage * falloff });
+    }
+    return out;
+  }
+
   kill(enemy) {
     enemy.dead = true;
     this.effects.explosion(enemy.pos, enemy.cfg.color);
