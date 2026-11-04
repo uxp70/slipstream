@@ -432,4 +432,125 @@ class Game {
     const raw = Math.min(0.05, this.clock.getDelta());
     this.t += raw;
 
-    if (this.state === 'menu') …
+    if (this.state === 'menu') {
+      this.menuCamera();
+      this.effects.update(raw * 0.5);
+      this.world.update(raw, this.t);
+    } else if (this.state === 'paused') {
+      this.effects.update(raw * 0.15);
+      this.world.update(raw * 0.25, this.t);
+    } else {
+      this.world.update(raw, this.t);
+      this.effects.update(raw);
+      this.step(raw);
+    }
+
+    this.composer.render();
+    this.input.endFrame();
+  }
+
+  step(raw) {
+    if (this.state === 'playing') {
+      let d = raw;
+      if (this.hitstop > 0) {
+        this.hitstop -= raw;
+        d *= 0.18;
+      }
+      const controlling = this.input.controlling;
+      const ads = controlling && !this.player.dead && this.input.mouse(2) ? 1 : 0;
+      this.player.update(d, this.input, ads);
+      this.weapon.update(d, this.input, controlling && !this.player.dead);
+      this.enemies.update(d, this.player, this.t);
+      this.updateGame(d, raw);
+    } else if (this.state === 'dead' || this.state === 'over') {
+      this.player.update(raw, this.input, 0);
+      this.weapon.update(raw, this.input, false);
+      this.enemies.update(raw, this.player, this.t);
+      if (this.state === 'dead') {
+        this.deathTimer -= raw;
+        if (this.deathTimer <= 0 && !this.overShown) this.showGameOver();
+      }
+    }
+  }
+
+  updateGame(dt) {
+    if (this.player.dead) {
+      this.startDeath();
+      return;
+    }
+
+    // stats + HUD
+    this.topSpeed = Math.max(this.topSpeed, this.player.horizSpeed());
+    this.hud.setHealth(this.player.health, this.player.maxHealth);
+    this.hud.setAmmo(this.weapon.ammo, this.weapon.magSize, this.weapon.reloading);
+    this.hud.setDash(1 - this.player.dashCooldown / 1.65);
+    this.hud.setSpeed(this.player.horizSpeed());
+    this.hud.setWave(this.wave, this.enemies.remaining());
+    this.hud.crosshairSpread(this.weapon.spreadPixels());
+    this.hud.setFocused(this.weapon.ads > 0.5);
+
+    if (this.combo > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) this.combo = 0;
+    }
+    this.hud.setCombo(this.combo, this.multiplier(), Math.max(0, this.comboTimer) / 5);
+
+    if (this.t - this.startedAt > 9) this.hud.fadeHint();
+
+    // wave flow
+    if (!this.waveCleared && this.enemies.remaining() === 0) {
+      this.waveCleared = true;
+      this.waveDelay = 2.6;
+      const bonus = 200 + this.wave * 75;
+      this.score += bonus;
+      this.hud.setScore(this.score);
+      this.hud.banner('WAVE CLEAR', `+${bonus} BONUS · +15 INTEGRITY`);
+      this.audio.waveClear();
+      this.player.heal(15);
+    }
+    if (this.waveCleared) {
+      this.waveDelay -= dt;
+      if (this.waveDelay <= 0) this.startWave(this.wave + 1);
+    }
+  }
+
+  menuCamera() {
+    const a = this.t * 0.075;
+    const r = 36;
+    this.camera.position.set(Math.cos(a) * r, 9.5 + Math.sin(this.t * 0.32) * 1.6, Math.sin(a) * r);
+    this.camera.lookAt(0, 3.6, 0);
+    if (this.camera.fov !== 68) {
+      this.camera.fov = 68;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+}
+
+function waveSubtitle(n) {
+  if (n === 1) return 'SWARM DETECTED';
+  if (n === 2) return 'SKITTERS INBOUND';
+  if (n % 5 === 0) return 'ELITE SURGE';
+  if (n === 3) return 'SENTRIES ONLINE';
+  return 'HOSTILES INBOUND';
+}
+
+function readNumber(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    const v = Number(raw);
+    return Number.isFinite(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function store(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage can be blocked; settings just won't persist */
+  }
+}
+
+new Game();
