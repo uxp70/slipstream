@@ -1,5 +1,14 @@
 import * as THREE from 'three';
 
+// Per-weapon voice: crack (transient brightness), body (blast pitch), tail
+// (metallic ring), gain and base pitch. Enough to tell them apart with eyes shut.
+const SHOOT_PROFILES = {
+  rifle: { crack: 2600, body: 230, tail: 1250, gain: 0.9, pitch: 0.93 },
+  shotgun: { crack: 1500, body: 150, tail: 780, gain: 1.15, pitch: 0.8 },
+  rail: { crack: 4200, body: 320, tail: 1900, gain: 1.05, pitch: 1.06 },
+  rocket: { crack: 900, body: 120, tail: 520, gain: 1.05, pitch: 0.72 },
+};
+
 // Fully procedural audio: every sound effect is synthesized with Web Audio,
 // so there are no asset downloads and every shot has slight pitch variation.
 // Weapon shots are layered transient + body + sub + metallic tail, the same
@@ -130,11 +139,15 @@ export class AudioEngine {
   }
 
   // ---------------------------------------------------------------- weapons
-  shoot(volume = 1) {
+  // Each weapon gets its own voice: the rifle cracks, the shotgun thumps, the
+  // rail rings out and the launcher is all body.
+  shoot(volume = 1, kind = 'rifle') {
     if (!this.ready) return;
     const ctx = this.ctx;
     const t = this.now();
-    const pitch = 0.93 + Math.random() * 0.14;
+    const profile = SHOOT_PROFILES[kind] || SHOOT_PROFILES.rifle;
+    const pitch = profile.pitch + Math.random() * 0.14;
+    volume *= profile.gain;
 
     // 1. transient crack
     {
@@ -144,7 +157,7 @@ export class AudioEngine {
       hp.frequency.value = 620;
       const bp = ctx.createBiquadFilter();
       bp.type = 'bandpass';
-      bp.frequency.value = 2600 * pitch;
+      bp.frequency.value = profile.crack * pitch;
       bp.Q.value = 0.8;
       const g = ctx.createGain();
       this.perc(g.gain, t, 0.5 * volume, 0.002, 0.1);
@@ -157,7 +170,7 @@ export class AudioEngine {
     {
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
-      o.frequency.setValueAtTime(230 * pitch, t);
+      o.frequency.setValueAtTime(profile.body * pitch, t);
       o.frequency.exponentialRampToValueAtTime(58, t + 0.11);
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
@@ -188,7 +201,7 @@ export class AudioEngine {
     {
       const o = ctx.createOscillator();
       o.type = 'triangle';
-      o.frequency.setValueAtTime(1250 * pitch, t);
+      o.frequency.setValueAtTime(profile.tail * pitch, t);
       o.frequency.exponentialRampToValueAtTime(620, t + 0.16);
       const bp = ctx.createBiquadFilter();
       bp.type = 'bandpass';
@@ -202,6 +215,31 @@ export class AudioEngine {
       o.start(t);
       o.stop(t + 0.24);
     }
+  }
+
+  explosion() {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const t = this.now();
+    const n = this.noise(0.8);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(2600, t);
+    lp.frequency.exponentialRampToValueAtTime(120, t + 0.5);
+    const g = ctx.createGain();
+    this.perc(g.gain, t, 0.42, 0.004, 0.5);
+    n.connect(lp).connect(g);
+    g.connect(this.master);
+    g.connect(this.verbSend);
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(120, t);
+    o.frequency.exponentialRampToValueAtTime(30, t + 0.45);
+    const og = ctx.createGain();
+    this.perc(og.gain, t, 0.45, 0.005, 0.45);
+    o.connect(og).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.55);
   }
 
   hit(headshot = false, combo = 0) {
