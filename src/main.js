@@ -13,6 +13,7 @@ import { AudioEngine } from './audio.js';
 import { Hud } from './hud.js';
 import { Input } from './input.js';
 import { TouchControls } from './touch.js';
+import { Squad } from './squad.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -75,6 +76,7 @@ class Game {
       this.camera, this.scene, this.audio, this.effects, this.player, this.world, this.enemies
     );
     this.weapon = this.weapons;
+    this.squad = new Squad(this);
 
     this.state = 'menu';
     this.t = 0;
@@ -470,6 +472,7 @@ class Game {
     this.startWave(1);
     this.state = 'playing';
     if (this.isTouch && this.touch) this.touch.show();
+    this.squad.onRunStart();
   }
 
   restart() {
@@ -487,6 +490,10 @@ class Game {
     this.wave = n;
     this.waveCleared = false;
     this.waveDelay = 0;
+    if (this.squad && this.squad.isGuest) {
+      this.hud.setWave(n, 0);
+      return;
+    }
     this.enemies.spawnWave(n, this.player.pos);
     this.hud.setWave(n, this.enemies.remaining());
     this.hud.banner(`WAVE ${String(n).padStart(2, '0')}`, waveSubtitle(n));
@@ -529,6 +536,8 @@ class Game {
   }
 
   handleHit({ enemy, point, headshot, damage }) {
+    // guests report hits to the host, which owns enemy health and scoring
+    if (this.squad.reportHit({ enemy, point, headshot, damage })) return;
     this.hits++;
     if (headshot) this.headshots++;
     const res = this.enemies.hit(enemy, damage, point, headshot);
@@ -591,7 +600,9 @@ class Game {
       const ads = controlling && !this.player.dead && this.input.mouse(2) ? 1 : 0;
       this.player.update(d, this.input, ads);
       this.weapons.update(d, this.input, controlling && !this.player.dead);
-      this.enemies.update(d, this.player, this.t);
+      // guests render the host's wave instead of running the AI themselves
+      if (!this.squad.isGuest) this.enemies.update(d, this.player, this.t);
+      this.squad.update(d);
       this.updateGame(d, raw);
     } else if (this.state === 'dead' || this.state === 'over') {
       this.player.update(raw, this.input, 0);
@@ -606,6 +617,8 @@ class Game {
 
   updateGame(dt) {
     if (this.player.dead) {
+      // in co-op a downed player rebuilds instead of ending the run
+      if (this.squad.handleDown()) return;
       this.startDeath();
       return;
     }
@@ -630,7 +643,9 @@ class Game {
 
     if (this.t - this.startedAt > 9) this.hud.fadeHint();
 
-    // wave flow
+    // wave flow: the host is the only authority that advances waves in co-op
+    if (this.squad.isGuest) return;
+
     if (!this.waveCleared && this.enemies.remaining() === 0) {
       this.waveCleared = true;
       this.waveDelay = 2.6;
