@@ -4,9 +4,9 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-import { World } from './world.js';
+import { World, MAPS } from './world.js';
 import { Player } from './player.js';
-import { Weapon } from './weapon.js';
+import { WeaponSystem } from './weapon.js';
 import { EnemyManager } from './enemies.js';
 import { Effects } from './effects.js';
 import { AudioEngine } from './audio.js';
@@ -17,6 +17,8 @@ import { TouchControls } from './touch.js';
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
 const VOL_KEY = 'slipstream.vol';
+const MAP_KEY = 'slipstream.map';
+const QUALITY_KEY = 'slipstream.quality';
 
 class Game {
   constructor() {
@@ -29,11 +31,19 @@ class Game {
       (navigator.maxTouchPoints > 0 && window.innerWidth < 1200);
     document.body.classList.toggle('touch', this.isTouch);
 
+    this.baseDpr = Math.min(window.devicePixelRatio || 1, this.isTouch ? 1.4 : 1.6);
+    this.dprScale = 1;
+    this.quality = readString(QUALITY_KEY, 'auto');
+    this.bloomAllowed = this.quality !== 'performance';
+
     this.renderer = new THREE.WebGLRenderer({ antialias: !this.isTouch, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isTouch ? 1.35 : 1.5));
+    this.renderer.setPixelRatio(this.currentDpr());
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
+    // we report the scene's draw calls, so don't let each internal render pass
+    // reset the counters
+    this.renderer.info.autoReset = false;
     this.app.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
@@ -45,7 +55,7 @@ class Game {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      this.isTouch ? 0.52 : 0.62,
+      this.isTouch ? 0.5 : 0.62,
       0.55,
       0.74
     );
@@ -61,7 +71,10 @@ class Game {
     this.effects = new Effects(this.scene);
     this.player = new Player(this.camera, this.world, this.audio, this.effects);
     this.enemies = new EnemyManager(this.scene, this.audio, this.effects, this.world, this.camera);
-    this.weapon = new Weapon(this.camera, this.scene, this.audio, this.effects, this.player, this.world, this.enemies);
+    this.weapons = new WeaponSystem(
+      this.camera, this.scene, this.audio, this.effects, this.player, this.world, this.enemies
+    );
+    this.weapon = this.weapons;
 
     this.state = 'menu';
     this.t = 0;
@@ -82,11 +95,13 @@ class Game {
     this.startedAt = 0;
     this.pendingRestart = false;
     this.best = readNumber(BEST_KEY, 0);
+    this.mapId = readString(MAP_KEY, 'circuit');
 
-    this.weapon.onShoot = () => {
+    this.weapons.onShoot = () => {
       this.shots++;
     };
-    this.weapon.onHit = (info) => this.handleHit(info);
+    this.weapons.onHit = (info) => this.handleHit(info);
+    this.weapons.onSwitch = () => this.hud.setWeapon(this.weapons.index);
 
     this.enemies.onPickup = (amount) => {
       this.hud.popCenter(`+${amount} INTEGRITY`, 'bonus', -70);
@@ -95,28 +110,100 @@ class Game {
     this.hud.setBest(this.best);
     this.bindUi();
     this.applySettingsFromStorage();
+    this.selectMap(this.mapId, true);
+    this.applyQuality(this.quality, true);
     this.hud.showStart();
+    this.hud.setWeapon(0);
 
     if (this.isTouch) {
       const startBtn = document.getElementById('btn-start');
       if (startBtn) startBtn.textContent = 'TAP TO PLAY';
       const pauseKeys = document.querySelector('#screen-pause .keys');
-      if (pauseKeys) pauseKeys.textContent = 'Left stick to move · drag the right side to aim · FIRE / JUMP / DASH buttons';
+      if (pauseKeys) pauseKeys.textContent = 'Left stick to move · drag the right side to aim · tap the weapon strip to swap';
       const overKeys = document.querySelector('#screen-over .keys');
       if (overKeys) overKeys.textContent = 'Tap RUN IT BACK to restart';
     }
 
-    this.player.reset(new THREE.Vector3(0, 1.2, 30));
-    this.weapon.setVisible(false);
+    this.player.reset(this.world.spawnAt.clone());
+    this.weapons.setVisible(false);
     this.hud.off();
 
     this.clock = new THREE.Clock();
+    this.frameAcc = 0;
+    this.frameCount = 0;
+    this.fps = 60;
+    this.drawCalls = 0;
+    this.perfWindow = 0;
+    this.slowWindows = 0;
+
     window.addEventListener('resize', () => this.onResize());
     window.addEventListener('orientationchange', () => setTimeout(() => this.onResize(), 250));
     this.renderer.setAnimationLoop(() => this.loop());
 
+    // warm the shader cache so the first frames of a run don't hitch
+    this.renderer.compile?.(this.scene, this.camera);
+
     // handy for debugging from the console (and for automated smoke tests)
     window.__game = this;
+  }
+
+  // ------------------------------------------------------------ quality / dpr
+  currentDpr() {
+    const cap = this.quality === 'high'
+      ? (this.isTouch ? 1.8 : 2)
+      : this.quality === 'performance'
+        ? 1
+        : this.baseDpr;
+    return Math.max(0.55, Math.min(cap, cap * this.dprScale));
+  }
+
+  applyQuality(mode, initial = false) {
+    this.quality = mode;
+    this.bloomAllowed = mode !== 'performance';
+    if (!initial) store(QUALITY_KEY, mode);
+    this.dprScale = mode === 'high' ? 1 : mode === 'performance' ? 0.8 : 1;
+    this.renderer.setPixelRatio(this.currentDpr());
+    this.bloom.enabled = this.bloomAllowed;
+    this.onResize();
+    for (const el of document.querySelectorAll('[data-quality]')) {
+      el.classList.toggle('sel', el.dataset.quality === mode);
+    }
+    this.hud.setQualityLabel(mode);
+  }
+
+  setDprScale(scale) {
+    const next = Math.max(0.55, Math.min(1, scale));
+    if (Math.abs(next - this.dprScale) < 0.01) return;
+    this.dprScale = next;
+    this.renderer.setPixelRatio(this.currentDpr());
+    this.onResize();
+  }
+
+  // Adaptive resolution: hold the frame rate first, resolution second. One
+  // window per half second, with a dead band so it cannot ping-pong.
+  samplePerf(raw, calls) {
+    this.frameAcc += raw;
+    this.frameCount++;
+    this.drawCalls = calls;
+    if (this.frameAcc < 0.5) return;
+    this.fps = Math.round(this.frameCount / this.frameAcc);
+    this.frameAcc = 0;
+    this.frameCount = 0;
+    this.hud.setFps(this.fps);
+    if (this.quality !== 'auto') return;
+
+    if (this.fps < 48) {
+      this.slowWindows++;
+      this.setDprScale(this.dprScale - 0.08);
+      if (this.slowWindows >= 3 && this.bloom.enabled) {
+        this.bloom.enabled = false;
+        this.slowWindows = 0;
+      }
+    } else if (this.fps > 58) {
+      this.slowWindows = 0;
+      if (!this.bloom.enabled && this.fps > 62) this.bloom.enabled = this.bloomAllowed;
+      if (this.dprScale < 1) this.setDprScale(this.dprScale + 0.04);
+    }
   }
 
   // ------------------------------------------------------------------- setup
@@ -150,6 +237,24 @@ class Game {
     document.getElementById('screen-over').addEventListener('click', (e) => {
       if (e.target.id !== 'btn-restart') this.restart();
     });
+
+    // map picker
+    for (const el of document.querySelectorAll('[data-map]')) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.audio.init();
+        this.audio.ui();
+        this.selectMap(el.dataset.map);
+      });
+    }
+
+    for (const el of document.querySelectorAll('[data-quality]')) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.audio.ui();
+        this.applyQuality(el.dataset.quality);
+      });
+    }
 
     const sens = document.getElementById('sens');
     const sensVal = document.getElementById('sens-val');
@@ -192,6 +297,27 @@ class Game {
     this.volValEl = volVal;
   }
 
+  // --------------------------------------------------------------- map select
+  selectMap(id, initial = false) {
+    const map = this.world.build(id);
+    this.mapId = map.id;
+    if (!initial) store(MAP_KEY, map.id);
+
+    this.scene.fog.color.setHex(this.world.fogColor || 0x05070f);
+    if (this.world.floorMat) this.world.floorMat.color.setHex(this.world.floorTint ?? 0xffffff);
+
+    for (const el of document.querySelectorAll('[data-map]')) {
+      el.classList.toggle('sel', el.dataset.map === map.id);
+    }
+    const blurb = document.getElementById('map-blurb');
+    if (blurb) blurb.textContent = `${map.tag} — ${map.blurb}`;
+    this.hud.setMap(map.name);
+
+    this.player.reset(this.world.spawnAt.clone());
+    this.renderer.compile?.(this.scene, this.camera);
+    return map;
+  }
+
   applySettingsFromStorage() {
     const sens = readNumber(SENS_KEY, 0.22);
     const vol = readNumber(VOL_KEY, 0.7);
@@ -219,7 +345,7 @@ class Game {
       this.state = 'playing';
       this.hud.hidePause();
       this.hud.on();
-      this.weapon.setVisible(true);
+      this.weapons.setVisible(true);
       this.audio.setPaused(false);
     }
   }
@@ -237,7 +363,7 @@ class Game {
         this.state = 'playing';
         this.hud.hidePause();
         this.hud.on();
-        this.weapon.setVisible(true);
+        this.weapons.setVisible(true);
       }
     } else {
       this.pause();
@@ -249,7 +375,7 @@ class Game {
     this.state = 'paused';
     this.hud.showPause();
     this.audio.setPaused(true);
-    this.weapon.setVisible(false);
+    this.weapons.setVisible(false);
     this.input.mouseButtons.clear();
     this.input.keys.clear();
     this.input.clearVirtual();
@@ -269,7 +395,7 @@ class Game {
     this.state = 'playing';
     this.hud.hidePause();
     this.hud.on();
-    this.weapon.setVisible(true);
+    this.weapons.setVisible(true);
     this.audio.setPaused(false);
     if (this.touch) this.touch.show();
   }
@@ -294,6 +420,7 @@ class Game {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.composer.setPixelRatio?.(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
     // bloom at half resolution: much cheaper, visually indistinguishable here
     this.bloom.setSize(Math.max(1, Math.floor(w * 0.5)), Math.max(1, Math.floor(h * 0.5)));
@@ -323,9 +450,9 @@ class Game {
     this.enemies.clear();
     this.effects.reset();
     this.world.resetPads();
-    this.player.reset(new THREE.Vector3(0, 1.2, 30));
-    this.weapon.reset();
-    this.weapon.setVisible(true);
+    this.player.reset(this.world.spawnAt.clone());
+    this.weapons.reset();
+    this.weapons.setVisible(true);
 
     this.hud.reset();
     this.hud.on();
@@ -335,7 +462,9 @@ class Game {
     this.hud.setBest(this.best);
     this.hud.setScore(0);
     this.hud.setHealth(this.player.health, this.player.maxHealth);
-    this.hud.setAmmo(this.weapon.ammo, this.weapon.magSize, false);
+    this.hud.setMap(this.world.mapId.toUpperCase());
+    this.hud.setWeapon(0);
+    this.hud.setAmmo(this.weapons.ammo, this.weapons.magSize, false, this.weapons.def);
     this.hud.setWave(1, 0);
 
     this.startWave(1);
@@ -369,7 +498,7 @@ class Game {
     if (this.touch) this.touch.hide();
     this.deathTimer = 1.35;
     this.audio.gameOver();
-    this.weapon.setVisible(false);
+    this.weapons.setVisible(false);
     this.hud.banner('SIGNAL LOST', 'RUN TERMINATED');
     this.hud.setLowHp(false);
     this.input.unlock();
@@ -445,8 +574,10 @@ class Game {
       this.step(raw);
     }
 
+    this.renderer.info.reset();
     this.composer.render();
     this.input.endFrame();
+    this.samplePerf(raw, this.renderer.info.render.calls);
   }
 
   step(raw) {
@@ -459,12 +590,12 @@ class Game {
       const controlling = this.input.controlling;
       const ads = controlling && !this.player.dead && this.input.mouse(2) ? 1 : 0;
       this.player.update(d, this.input, ads);
-      this.weapon.update(d, this.input, controlling && !this.player.dead);
+      this.weapons.update(d, this.input, controlling && !this.player.dead);
       this.enemies.update(d, this.player, this.t);
       this.updateGame(d, raw);
     } else if (this.state === 'dead' || this.state === 'over') {
       this.player.update(raw, this.input, 0);
-      this.weapon.update(raw, this.input, false);
+      this.weapons.update(raw, this.input, false);
       this.enemies.update(raw, this.player, this.t);
       if (this.state === 'dead') {
         this.deathTimer -= raw;
@@ -481,13 +612,15 @@ class Game {
 
     // stats + HUD
     this.topSpeed = Math.max(this.topSpeed, this.player.horizSpeed());
+    const def = this.weapons.def;
     this.hud.setHealth(this.player.health, this.player.maxHealth);
-    this.hud.setAmmo(this.weapon.ammo, this.weapon.magSize, this.weapon.reloading);
+    this.hud.setAmmo(this.weapons.ammo, this.weapons.magSize, this.weapons.reloading, def);
+    this.hud.setWeapons(this.weapons.allAmmo(), this.weapons.index, this.weapons.reloading);
     this.hud.setDash(1 - this.player.dashCooldown / 1.65);
     this.hud.setSpeed(this.player.horizSpeed());
     this.hud.setWave(this.wave, this.enemies.remaining());
-    this.hud.crosshairSpread(this.weapon.spreadPixels());
-    this.hud.setFocused(this.weapon.ads > 0.5);
+    this.hud.crosshairSpread(this.weapons.spreadPixels());
+    this.hud.setFocused(this.weapons.ads > 0.5);
 
     if (this.combo > 0) {
       this.comboTimer -= dt;
@@ -545,6 +678,14 @@ function readNumber(key, fallback) {
   }
 }
 
+function readString(key, fallback) {
+  try {
+    return localStorage.getItem(key) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function store(key, value) {
   try {
     localStorage.setItem(key, value);
@@ -554,3 +695,5 @@ function store(key, value) {
 }
 
 new Game();
+
+export { Game, MAPS };
