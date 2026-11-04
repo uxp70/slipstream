@@ -37,6 +37,7 @@
         </div>
         <div class="stat-sub">BEST <span id="best-num">0</span></div>
         <div class="perf-line"><span id="fps">60</span> FPS · <span id="quality-label">AUTO</span></div>
+        <div id="squad-roster"></div>
       </div>
 
       <div class="hud-corner tc">
@@ -146,6 +147,26 @@
           <div class="map-blurb" id="map-blurb">SINGLE ATRIUM — Ring loop, raised core, even cover.</div>
         </div>
 
+        <div class="squad-panel" id="squad-panel">
+          <div class="picker-label">SQUAD · ONLINE CO-OP</div>
+          <div class="squad-row">
+            <input id="sq-name" class="sq-input" type="text" maxlength="10" placeholder="CALLSIGN" autocomplete="off" spellcheck="false" />
+            <button type="button" class="qbtn" id="sq-host">CREATE SQUAD</button>
+          </div>
+          <div class="squad-row hidden" id="sq-code-row">
+            <span class="sq-code-label">CODE</span>
+            <b id="sq-code">-----</b>
+            <button type="button" class="qbtn" id="sq-copy">COPY LINK</button>
+          </div>
+          <div class="squad-row">
+            <input id="sq-code-input" class="sq-input code" type="text" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false" />
+            <button type="button" class="qbtn" id="sq-join">JOIN SQUAD</button>
+            <button type="button" class="qbtn hidden" id="sq-enter">ENTER ARENA</button>
+            <button type="button" class="qbtn hidden" id="sq-leave">LEAVE</button>
+          </div>
+          <div class="sq-status" id="sq-status">SOLO · CREATE A SQUAD OR JOIN WITH A CODE</div>
+        </div>
+
         <div class="graphics-row">
           <span class="picker-label">GRAPHICS</span>
           <button type="button" class="qbtn sel" data-quality="auto">AUTO</button>
@@ -183,6 +204,7 @@
         <div class="eyebrow">SYSTEM HALT</div>
         <h2>PAUSED</h2>
         <button id="btn-resume" class="cta small">RESUME</button>
+        <button id="btn-leave-squad" class="qbtn hidden">LEAVE SQUAD</button>
         <div class="settings">
           <label>
             <span>MOUSE SENSITIVITY</span>

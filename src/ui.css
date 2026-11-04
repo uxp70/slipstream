@@ -163,6 +163,153 @@
   background: rgba(24, 82, 104, 0.5);
 }
 
+/* ===================== SQUAD / ONLINE CO-OP ===================== */
+
+.squad-panel {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.squad-panel .picker-label {
+  margin-bottom: 2px;
+}
+
+.squad-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sq-input {
+  width: 148px;
+  padding: 6px 9px;
+  background: rgba(8, 16, 26, 0.7);
+  border: 1px solid rgba(99, 245, 255, 0.18);
+  color: #dffaff;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+  border-radius: 0;
+}
+.sq-input.code {
+  width: 92px;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+}
+.sq-input:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 18px rgba(99, 245, 255, 0.25);
+}
+.sq-input::placeholder {
+  color: rgba(150, 200, 215, 0.3);
+  letter-spacing: 0.18em;
+}
+
+.sq-code-label {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.3em;
+  color: rgba(150, 200, 215, 0.5);
+}
+
+#sq-code {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.34em;
+  color: var(--cyan);
+  text-shadow: 0 0 18px rgba(99, 245, 255, 0.5);
+}
+
+.sq-status {
+  min-height: 11px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: rgba(150, 200, 215, 0.45);
+  text-align: center;
+}
+.sq-status[data-state='ok'] {
+  color: rgba(120, 255, 200, 0.85);
+}
+.sq-status[data-state='busy'] {
+  color: var(--cyan);
+}
+.sq-status[data-state='err'] {
+  color: var(--red);
+}
+
+.qbtn:disabled {
+  cursor: default;
+}
+
+/* the project has no generic .hidden utility (only .screen.hidden fades), so
+   the squad controls declare their own */
+#sq-code-row.hidden,
+#sq-enter.hidden,
+#sq-leave.hidden,
+#btn-leave-squad.hidden {
+  display: none;
+}
+
+/* roster lives under the score block, only while a squad is linked */
+#squad-roster {
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 10px;
+}
+#squad-roster.on {
+  display: flex;
+}
+
+.sq-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: rgba(190, 225, 235, 0.65);
+}
+.sq-row i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  background: var(--c, var(--cyan));
+  box-shadow: 0 0 8px var(--c, var(--cyan));
+}
+.sq-row b {
+  font-weight: 400;
+  max-width: 74px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sq-row.self b {
+  color: #eafcff;
+}
+.sq-row span {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: rgba(150, 200, 215, 0.5);
+}
+.sq-code {
+  margin-bottom: 3px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.24em;
+  color: rgba(99, 245, 255, 0.6);
+}
+
 /* touch: the strip leaves the corner block so it never sits under the fire
    cluster; it becomes a bottom-centre row in landscape and a right-hand column
    in portrait (see touch.css). */
@@ -192,6 +339,9 @@ body.touch .wslot .wname {
 @media (max-height: 480px) {
   .map-picker {
     margin-top: 14px;
+  }
+  .squad-panel {
+    margin-top: 10px;
   }
   .map-cards {
     gap: 6px;
@@ -223,4 +373,24 @@ body.touch .wslot .wname {
     width: 118px;
     min-height: 30px;
   }
+}
+
+/* the start screen now carries the squad panel too, so short viewports must be
+   able to scroll instead of clipping the join controls or the CTA */
+#screen-start {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px 0;
+}
+
+body.touch .sq-input {
+  width: 116px;
+  min-height: 32px;
+}
+body.touch .sq-input.code {
+  width: 78px;
+}
+body.touch .squad-row .qbtn {
+  min-height: 32px;
+  padding: 6px 10px;
 }
