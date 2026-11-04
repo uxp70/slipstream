@@ -1,10 +1,113 @@
 import * as THREE from 'three';
+import { buildWeaponModel } from './weaponModels.js';
 
 const TAU = Math.PI * 2;
 
-// The VX-9: hitscan rifle with bloom, recoil, focus aim, procedural viewmodel
-// animation and a layered muzzle flash.
-export class Weapon {
+// Four archetypes, deliberately split so each owns a different fight:
+//   VX-9   tracking hitscan   — mid range, forgiving, needs sustained aim
+//   BR-12  spread hitscan     — point blank burst, shell-by-shell reload
+//   LN-7   precision hitscan  — long sightlines, huge damage, long cycle
+//   PR-4   splash projectile  — area denial, corners, rocket-jump movement
+// Two hitscan that differ by range and spread, two that differ by delivery.
+export const WEAPONS = [
+  {
+    id: 'rifle',
+    name: 'VX-9 ARC RIFLE',
+    short: 'RIFLE',
+    kind: 'hitscan',
+    damage: 20,
+    headMult: 2.2,
+    interval: 0.088,
+    mag: 30,
+    reload: 1.35,
+    spread: 0.0016,
+    bloomPerShot: 1.15,
+    bloomMax: 16,
+    recoilPitch: 0.0075,
+    recoilYaw: 0.003,
+    shake: 0.075,
+    fovKick: 0.85,
+    color: 0xffe3b0,
+    flash: 0xffd58a,
+    adsTime: 14,
+    lowAmmo: 8,
+  },
+  {
+    id: 'breach',
+    name: 'BR-12 BREACHER',
+    short: 'BREACH',
+    kind: 'shotgun',
+    pellets: 9,
+    damage: 9,
+    headMult: 1.7,
+    interval: 0.78,
+    mag: 6,
+    reload: 0.34,
+    shellReload: true,
+    spread: 0.032,
+    bloomPerShot: 0,
+    bloomMax: 0,
+    recoilPitch: 0.032,
+    recoilYaw: 0.009,
+    shake: 0.2,
+    fovKick: 3.2,
+    color: 0xffd08a,
+    flash: 0xffb347,
+    adsTime: 11,
+    lowAmmo: 2,
+  },
+  {
+    id: 'lance',
+    name: 'LN-7 LANCE',
+    short: 'LANCE',
+    kind: 'rail',
+    damage: 95,
+    headMult: 2,
+    interval: 1.35,
+    mag: 5,
+    reload: 2.1,
+    spread: 0,
+    bloomPerShot: 0,
+    bloomMax: 0,
+    recoilPitch: 0.05,
+    recoilYaw: 0.004,
+    shake: 0.28,
+    fovKick: 6,
+    color: 0x8ef8ff,
+    flash: 0xa8f4ff,
+    adsTime: 9,
+    lowAmmo: 1,
+  },
+  {
+    id: 'havoc',
+    name: 'PR-4 HAVOC',
+    short: 'HAVOC',
+    kind: 'rocket',
+    damage: 105,
+    splash: 72,
+    splashRadius: 3.8,
+    speed: 32,
+    interval: 0.9,
+    mag: 4,
+    reload: 1.9,
+    spread: 0.004,
+    bloomPerShot: 0,
+    bloomMax: 0,
+    recoilPitch: 0.034,
+    recoilYaw: 0.006,
+    shake: 0.24,
+    fovKick: 4,
+    color: 0xffa63c,
+    flash: 0xffb347,
+    adsTime: 12,
+    lowAmmo: 1,
+  },
+];
+
+const HIP = new THREE.Vector3(0.32, -0.285, -0.6);
+const ADS = new THREE.Vector3(0, -0.16, -0.46);
+
+export class WeaponSystem {
   constructor(camera, scene, audio, effects, player, world, enemies) {
     this.camera = camera;
     this.scene = scene;
@@ -14,306 +117,575 @@ export class Weapon {
     this.world = world;
     this.enemies = enemies;
 
-    this.magSize = 30;
-    this.ammo = 30;
-    this.fireInterval = 0.088;
-    this.cooldown = 0;
-    this.reloadTime = 1.35;
-    this.reloading = false;
-    this.reloadTimer = 0;
-    this.emptyCooldown = 0;
+    this.defs = WEAPONS;
+    this.index = 0;
+    this.states = WEAPONS.map((def) => ({
+      ammo: def.mag,
+      cooldown: 0,
+      reloading: false,
+      reloadTimer: 0,
+      bloom: 0,
+      kick: 0,
+      kickVel: 0,
+      kickPitch: 0,
+      raise: 0,
+      ads: 0,
+      flashTimer: 0,
+    }));
 
-    this.damage = 20;
-    this.headshotMultiplier = 2.2;
-    this.bloom = 0;
-    this.ads = 0;
-    this.kick = 0;
-    this.kickVel = 0;
-    this.kickPitch = 0;
     this.swayX = 0;
     this.swayY = 0;
     this.time = 0;
+    this.visible = false;
+    this.projectiles = [];
 
     this.onHit = null;
     this.onShoot = null;
+    this.onSwitch = null;
 
     this.hitPoint = new THREE.Vector3();
     this.hitNormal = new THREE.Vector3();
+    this._dir = new THREE.Vector3();
+    this._right = new THREE.Vector3();
+    this._up = new THREE.Vector3();
+    this._muzzle = new THREE.Vector3();
+    this._end = new THREE.Vector3();
+    this._origin = new THREE.Vector3();
+    this._v = new THREE.Vector3();
+    this._hits = new Map();
 
-    this.build();
+    this.models = WEAPONS.map((def) => {
+      const model = buildWeaponModel(def);
+      model.group.position.copy(HIP);
+      model.group.visible = false;
+      this.camera.add(model.group);
+      return model;
+    });
+    this.applyActive();
   }
 
-  build() {
-    const group = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x2a3a52,
-      roughness: 0.42,
-      metalness: 0.55,
-      emissive: 0x0d2436,
-      emissiveIntensity: 0.9,
-    });
-    const darkMat = new THREE.MeshStandardMaterial({
-      color: 0x111a28,
-      roughness: 0.6,
-      metalness: 0.4,
-      emissive: 0x081420,
-      emissiveIntensity: 0.6,
-    });
-    const glowMat = new THREE.MeshBasicMaterial({ color: 0x2bb8c8 });
-    const accentMat = new THREE.MeshBasicMaterial({ color: 0xffb347 });
-
-    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(x, y, z);
-      m.rotation.set(rx, ry, rz);
-      group.add(m);
-      return m;
-    };
-
-    // receiver / barrel / rail
-    add(new THREE.BoxGeometry(0.17, 0.16, 0.6), bodyMat, 0, 0, 0);
-    add(new THREE.BoxGeometry(0.085, 0.085, 0.46), bodyMat, 0, 0.012, -0.48);
-    add(new THREE.BoxGeometry(0.115, 0.115, 0.13), darkMat, 0, 0.012, -0.74);
-    add(new THREE.BoxGeometry(0.13, 0.05, 0.34), darkMat, 0, 0.105, -0.2);
-    add(new THREE.BoxGeometry(0.055, 0.026, 0.05), darkMat, 0, 0.133, -0.07);
-    add(new THREE.BoxGeometry(0.016, 0.016, 0.016), glowMat, 0, 0.14, -0.095);
-    add(new THREE.BoxGeometry(0.03, 0.008, 0.008), accentMat, 0, 0.12, -0.02);
-
-    // grip, magazine, stock
-    add(new THREE.BoxGeometry(0.075, 0.22, 0.1), darkMat, 0, -0.17, 0.16, 0.28);
-    this.magMesh = add(new THREE.BoxGeometry(0.095, 0.27, 0.14), bodyMat, 0, -0.2, -0.02, -0.1);
-    add(new THREE.BoxGeometry(0.075, 0.13, 0.26), darkMat, 0, -0.015, 0.36);
-
-    // glowing spine strips (readability in a dark arena)
-    add(new THREE.BoxGeometry(0.012, 0.012, 0.42), glowMat, -0.088, 0.058, -0.02);
-    add(new THREE.BoxGeometry(0.012, 0.012, 0.42), glowMat, 0.088, 0.058, -0.02);
-    add(new THREE.BoxGeometry(0.012, 0.012, 0.2), accentMat, 0.088, -0.045, 0.12);
-
-    // muzzle flash sprite + light
-    this.muzzle = new THREE.Object3D();
-    this.muzzle.position.set(0, 0.012, -0.86);
-    group.add(this.muzzle);
-
-    const flashMat = new THREE.SpriteMaterial({
-      map: muzzleTexture(),
-      color: 0xffd58a,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: false,
-    });
-    this.flashSprite = new THREE.Sprite(flashMat);
-    this.flashSprite.scale.setScalar(0.55);
-    this.flashSprite.visible = false;
-    this.muzzle.add(this.flashSprite);
-
-    this.flashLight = new THREE.PointLight(0xffc063, 0, 16, 2);
-    this.flashLight.position.copy(this.muzzle.position);
-    group.add(this.flashLight);
-    this.flashTimer = 0;
-
-    this.group = group;
-    group.visible = false;
-    this.camera.add(group);
-
-    group.scale.setScalar(0.66);
-    this.hip = new THREE.Vector3(0.32, -0.285, -0.6);
-    this.adsPos = new THREE.Vector3(0, -0.16, -0.46);
-    group.position.copy(this.hip);
-    group.rotation.set(0, 0.035, 0);
+  // ------------------------------------------------------------------ getters
+  get def() {
+    return this.defs[this.index];
   }
 
-  reset() {
-    this.ammo = this.magSize;
-    this.reloading = false;
-    this.reloadTimer = 0;
-    this.cooldown = 0;
-    this.bloom = 0;
-    this.kick = 0;
-    this.kickVel = 0;
-    this.kickPitch = 0;
-    this.ads = 0;
-    this.flashTimer = 0;
-    this.flashSprite.visible = false;
-    this.flashLight.intensity = 0;
-    this.group.visible = true;
+  get state() {
+    return this.states[this.index];
+  }
+
+  get ammo() {
+    return this.state.ammo;
+  }
+
+  get magSize() {
+    return this.def.mag;
+  }
+
+  get reloading() {
+    return this.state.reloading;
+  }
+
+  get ads() {
+    return this.state.ads;
+  }
+
+  get current() {
+    return this.def.id;
+  }
+
+  allAmmo() {
+    return this.states.map((s, i) => ({
+      ammo: s.ammo,
+      mag: this.defs[i].mag,
+      id: this.defs[i].id,
+    }));
+  }
+
+  applyActive() {
+    this.models.forEach((m, i) => {
+      m.group.visible = this.visible && i === this.index;
+    });
   }
 
   setVisible(v) {
-    this.group.visible = v;
+    this.visible = v;
+    this.applyActive();
+  }
+
+  // ------------------------------------------------------------------ control
+  switchTo(i, silent = false) {
+    if (i < 0 || i >= this.defs.length) return;
+    const target = (i + this.defs.length) % this.defs.length;
+    if (target === this.index) return;
+    const prev = this.state;
+    prev.reloading = false;
+    prev.reloadTimer = 0;
+    prev.ads = 0;
+    this.index = target;
+    const s = this.state;
+    s.raise = 0;
+    s.cooldown = Math.max(s.cooldown, 0.08);
+    this.applyActive();
+    if (!silent) {
+      this.audio.ui();
+      if (this.onSwitch) this.onSwitch(target);
+    }
+  }
+
+  cycle(dir) {
+    this.switchTo(this.index + dir);
+  }
+
+  reset() {
+    for (let i = 0; i < this.states.length; i++) {
+      const s = this.states[i];
+      s.ammo = this.defs[i].mag;
+      s.cooldown = 0;
+      s.reloading = false;
+      s.reloadTimer = 0;
+      s.bloom = 0;
+      s.kick = 0;
+      s.kickVel = 0;
+      s.kickPitch = 0;
+      s.ads = 0;
+      s.raise = 1;
+      s.flashTimer = 0;
+    }
+    this.clearProjectiles();
+    this.setVisible(true);
+    this.switchTo(0, true);
+    this.applyActive();
   }
 
   startReload() {
-    if (this.reloading || this.ammo === this.magSize) return;
-    this.reloading = true;
-    this.reloadTimer = 0;
+    const s = this.state;
+    const def = this.def;
+    if (s.reloading || s.ammo >= def.mag) return;
+    s.reloading = true;
+    s.reloadTimer = 0;
+    s.bloom = 0;
     this.audio.reload();
-    this.bloom = 0;
   }
 
   spreadRadians() {
-    return (0.0016 + this.bloom * 0.00052 + this.player.horizSpeed() * 0.00006) * (1 - 0.74 * this.ads);
+    const s = this.state;
+    const def = this.def;
+    return (def.spread + s.bloom * 0.00052 + this.player.horizSpeed() * 0.00006) * (1 - 0.74 * s.ads);
   }
 
   spreadPixels() {
-    return 7 + this.bloom * 1.05 + Math.min(8, this.player.horizSpeed() * 0.22) - this.ads * 4;
+    const s = this.state;
+    const def = this.def;
+    const base = def.kind === 'rail' ? 2 : def.kind === 'shotgun' ? 26 : def.kind === 'rocket' ? 6 : 7;
+    return base + s.bloom * 1.05 + Math.min(8, this.player.horizSpeed() * 0.22) - s.ads * 4;
   }
 
+  // ------------------------------------------------------------------- update
   update(dt, input, canFire) {
     this.time += dt;
-    this.cooldown = Math.max(0, this.cooldown - dt);
-    this.emptyCooldown = Math.max(0, this.emptyCooldown - dt);
-    this.bloom *= Math.exp(-dt * 7.5);
 
-    const adsTarget = canFire && input.mouse(2) && !this.reloading ? 1 : 0;
-    this.ads += (adsTarget - this.ads) * Math.min(1, dt * 14);
+    // switching commits on the input event; the raise animation catches up
+    if (canFire) {
+      for (let i = 0; i < 4; i++) {
+        if (input.pressed(`Digit${i + 1}`)) this.switchTo(i);
+      }
+      if (input.pressed('KeyQ')) this.cycle(1);
+      const wheel = input.consumeWheel ? input.consumeWheel() : 0;
+      if (wheel !== 0) this.cycle(wheel > 0 ? 1 : -1);
+    }
 
-    // reload
-    if (this.reloading) {
-      this.reloadTimer += dt;
-      if (this.reloadTimer >= this.reloadTime) {
-        this.reloading = false;
-        this.ammo = this.magSize;
-        this.bloom = 0;
+    const def = this.def;
+    const s = this.state;
+
+    s.cooldown = Math.max(0, s.cooldown - dt);
+    s.bloom *= Math.exp(-dt * 7.5);
+    s.raise = Math.min(1, s.raise + dt * 7);
+
+    const adsTarget = canFire && input.mouse(2) && !s.reloading ? 1 : 0;
+    s.ads += (adsTarget - s.ads) * Math.min(1, dt * def.adsTime);
+
+    if (s.reloading) {
+      s.reloadTimer += dt;
+      if (def.shellReload) {
+        if (s.reloadTimer >= def.reload) {
+          s.reloadTimer -= def.reload;
+          s.ammo = Math.min(def.mag, s.ammo + 1);
+          if (s.ammo >= def.mag) s.reloading = false;
+        }
+      } else if (s.reloadTimer >= def.reload) {
+        s.reloading = false;
+        s.ammo = def.mag;
+        s.bloom = 0;
       }
     }
 
-    // firing
-    if (canFire && !this.reloading) {
+    if (canFire) {
       if (input.mouse(0)) {
-        if (this.ammo > 0) {
-          while (this.cooldown <= 0 && this.ammo > 0) {
+        if (s.reloading && s.ammo > 0) {
+          // firing cancels a reload; shells already loaded stay loaded
+          s.reloading = false;
+          s.reloadTimer = 0;
+        }
+        if (s.ammo > 0) {
+          let guard = 0;
+          while (s.cooldown <= 0 && s.ammo > 0 && guard++ < 8) {
             this.fire();
-            this.cooldown += this.fireInterval;
+            s.cooldown += def.interval;
           }
-        } else if (this.emptyCooldown <= 0) {
-          this.audio.empty();
-          this.emptyCooldown = 0.28;
+        } else {
           this.startReload();
         }
       }
       if (input.pressed('KeyR')) this.startReload();
-      if (this.ammo === 0) this.startReload();
+      if (s.ammo === 0 && !s.reloading) this.startReload();
     }
 
-    // viewmodel sway from mouse movement
+    this.updateProjectiles(dt);
+
+    // ---- viewmodel sway + springs
     const swayTX = Math.max(-0.05, Math.min(0.05, -this.player.lookDelta.x * 0.0009));
     const swayTY = Math.max(-0.05, Math.min(0.05, -this.player.lookDelta.y * 0.0009));
     this.swayX += (swayTX - this.swayX) * Math.min(1, dt * 11);
     this.swayY += (swayTY - this.swayY) * Math.min(1, dt * 11);
 
-    // recoil spring
-    this.kickVel += (-this.kick * 260 - this.kickVel * 22) * dt;
-    this.kick += this.kickVel * dt;
-    this.kickPitch *= Math.exp(-dt * 9);
+    s.kickVel += (-s.kick * 260 - s.kickVel * 22) * dt;
+    s.kick += s.kickVel * dt;
+    s.kickPitch *= Math.exp(-dt * 9);
 
-    // reload animation
+    const model = this.models[this.index];
+    if (!model) return;
+
     let reloadDip = 0;
     let reloadRoll = 0;
-    let magY = 0;
-    if (this.reloading) {
-      const t = Math.min(1, this.reloadTimer / this.reloadTime);
+    let magOffset = 0;
+    if (s.reloading) {
+      const t = Math.min(1, s.reloadTimer / def.reload);
       const curve = Math.sin(t * Math.PI);
-      reloadDip = curve * 0.13;
-      reloadRoll = curve * 0.7;
-      const magPhase = Math.min(1, Math.max(0, (t - 0.12) / 0.5));
-      magY = -Math.sin(magPhase * Math.PI) * 0.2;
+      reloadDip = curve * (def.shellReload ? 0.07 : 0.13);
+      reloadRoll = curve * (def.shellReload ? 0.35 : 0.7);
+      magOffset = -Math.sin(Math.min(1, t * 1.4) * Math.PI) * 0.12;
     }
-    this.magMesh.position.y = -0.2 + magY;
-
-    // muzzle flash decay
-    if (this.flashTimer > 0) {
-      this.flashTimer -= dt;
-      const k = Math.max(0, this.flashTimer / 0.055);
-      this.flashSprite.material.opacity = k;
-      this.flashSprite.scale.setScalar(0.35 + (1 - k) * 0.45);
-      this.flashLight.intensity = k * 320;
-      if (this.flashTimer <= 0) {
-        this.flashSprite.visible = false;
-        this.flashLight.intensity = 0;
-      }
+    if (model.magMesh) {
+      if (model.magMesh.userData.y0 === undefined) model.magMesh.userData.y0 = model.magMesh.position.y;
+      model.magMesh.position.y = model.magMesh.userData.y0 + magOffset;
     }
 
-    // assemble transform
-    const a = this.ads;
+    if (s.flashTimer > 0) {
+      s.flashTimer -= dt;
+      const k = Math.max(0, s.flashTimer / 0.06);
+      model.flashSprite.material.opacity = k;
+      model.flashSprite.visible = k > 0;
+      model.flashSprite.scale.setScalar(0.35 + (1 - k) * 0.5);
+      model.flashLight.intensity = k * 320;
+      if (s.flashTimer <= 0) model.flashLight.intensity = 0;
+    }
+
+    const a = s.ads;
     const bob = this.player.bobAmount * (1 - a * 0.85);
     const bobX = Math.cos(this.player.bobPhase) * 0.012 * bob;
     const bobY = Math.sin(this.player.bobPhase * 2) * 0.009 * bob;
+    const raiseOffset = (1 - easeOutCubic(s.raise)) * -0.34;
+    const adsOffset = def.id === 'havoc' ? -0.03 : 0;
 
-    const g = this.group;
-    g.position.x = this.hip.x + (this.adsPos.x - this.hip.x) * a + this.swayX * (1 - a * 0.7) + bobX;
-    g.position.y = this.hip.y + (this.adsPos.y - this.hip.y) * a + this.swayY * (1 - a * 0.7) + bobY + reloadDip;
-    g.position.z = this.hip.z + (this.adsPos.z - this.hip.z) * a + this.kick * 0.09;
-    g.rotation.x = this.kickPitch * 0.5 + reloadRoll * 0.35 + this.swayY * 2.2;
+    const g = model.group;
+    g.position.x = HIP.x + (ADS.x - HIP.x) * a + this.swayX * (1 - a * 0.7) + bobX;
+    g.position.y = HIP.y + (ADS.y - HIP.y) * a + this.swayY * (1 - a * 0.7) + bobY + reloadDip + raiseOffset;
+    g.position.z = HIP.z + adsOffset + s.kick * 0.09;
+    g.rotation.x = s.kickPitch * 0.5 + reloadRoll * 0.35 + this.swayY * 2.2 - raiseOffset * 1.1;
     g.rotation.y = this.swayX * 2.4 + (1 - a) * 0.035;
     g.rotation.z = reloadRoll * 0.7 + this.player.roll * 0.35;
 
-    // when the player dies the rifle drops out of frame
     if (this.player.dead) {
       g.position.y -= 0.35;
       g.rotation.x += 0.7;
     }
   }
 
+  // --------------------------------------------------------------------- fire
   fire() {
-    this.ammo--;
-    this.bloom = Math.min(16, this.bloom + 1.15);
-    if (this.onShoot) this.onShoot();
+    const def = this.def;
+    const s = this.state;
+    s.ammo--;
+    if (def.bloomMax) s.bloom = Math.min(def.bloomMax, s.bloom + def.bloomPerShot);
+    if (this.onShoot) this.onShoot(def);
 
-    // note: viewmodel transform is only rebuilt next frame, so compute the
-    // muzzle from the camera directly to keep tracers perfectly aligned.
-    const origin = this.camera.position.clone();
-    const dir = new THREE.Vector3();
+    const origin = this._origin.copy(this.camera.position);
+    const dir = this._dir;
     this.camera.getWorldDirection(dir);
 
-    const spread = this.spreadRadians();
-    if (spread > 0) {
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
-      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
-      const ang = Math.random() * TAU;
-      const r = Math.sqrt(Math.random()) * spread;
-      dir.addScaledVector(right, Math.cos(ang) * r).addScaledVector(up, Math.sin(ang) * r).normalize();
+    // resolve the muzzle before the shot is built: tracers and rockets spawn at
+    // it, and the viewmodel transform is only rebuilt later in the frame
+    this.camera.updateMatrixWorld();
+    const model = this.models[this.index];
+    model.muzzle.getWorldPosition(this._muzzle);
+
+    if (def.kind === 'shotgun') {
+      this.fireShotgun(origin, dir);
+    } else if (def.kind === 'rail') {
+      this.fireRail(origin, dir);
+    } else if (def.kind === 'rocket') {
+      this.fireRocket(origin, dir);
+    } else {
+      this.fireHitscan(origin, dir);
     }
 
-    this.camera.updateMatrixWorld();
-    const muzzlePos = new THREE.Vector3();
-    this.muzzle.getWorldPosition(muzzlePos);
+    this.player.addRecoil(
+      def.recoilPitch + Math.random() * def.recoilPitch * 0.4,
+      (Math.random() - 0.5) * def.recoilYaw * 2
+    );
+    this.player.addShake(def.shake);
 
-    const worldHit = this.world.raycast(origin, dir, 220);
-    const eHit = this.enemies.raycast(origin, dir, worldHit ? worldHit.distance : 220);
+    s.kickVel += def.kind === 'shotgun' ? 1.5 : def.kind === 'rail' ? 1.7 : 0.85;
+    s.kickPitch += def.recoilPitch * 6 + Math.random() * 0.015;
+    model.flashSprite.visible = true;
+    model.flashSprite.material.rotation = Math.random() * TAU;
+    model.flashSprite.material.opacity = 1;
+    model.flashLight.intensity = 320;
+    s.flashTimer = 0.06;
+    this.player.fovKick += def.fovKick;
+  }
 
+  applySpread(dir, spread) {
+    if (spread <= 0) return dir;
+    const right = this._right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const up = this._up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const ang = Math.random() * TAU;
+    const r = Math.sqrt(Math.random()) * spread;
+    return dir.addScaledVector(right, Math.cos(ang) * r).addScaledVector(up, Math.sin(ang) * r).normalize();
+  }
+
+  fireHitscan(origin, dir) {
+    const def = this.def;
+    const rayDir = this.applySpread(dir.clone(), this.spreadRadians());
+
+    const worldHit = this.world.raycast(origin, rayDir, 220);
+    const eHit = this.enemies.raycast(origin, rayDir, worldHit ? worldHit.distance : 220);
     let end;
     if (eHit) {
       end = eHit.point;
-      const dmg = this.damage * (eHit.headshot ? this.headshotMultiplier : 1);
-      this.effects.sparks(end, dir.clone().negate(), eHit.headshot ? 0xffd88a : 0xff9ae8, 8);
-      if (this.onHit) this.onHit({ enemy: eHit.enemy, point: eHit.point, headshot: eHit.headshot, damage: dmg });
+      const dmg = def.damage * (eHit.headshot ? def.headMult : 1);
+      this.effects.sparks(end, rayDir.clone().negate(), eHit.headshot ? 0xffd88a : 0xff9ae8, 8);
+      if (this.onHit) {
+        this.onHit({ enemy: eHit.enemy, point: eHit.point, headshot: eHit.headshot, damage: dmg, weapon: def.id });
+      }
     } else if (worldHit) {
       end = worldHit.point;
       this.effects.impact(worldHit.point, worldHit.normal, 0xffc063);
       this.audio.impact(worldHit.point, this.camera);
     } else {
-      end = origin.clone().addScaledVector(dir, 140);
+      end = origin.clone().addScaledVector(rayDir, 140);
     }
 
-    this.effects.tracer(muzzlePos, end, 0xffe3b0);
-    this.audio.shoot(0.9);
-    this.player.addRecoil(0.0075 + Math.random() * 0.0035, (Math.random() - 0.5) * 0.006);
-    this.player.addShake(0.075);
+    this.effects.tracer(this._muzzle, end, def.color);
+    this.audio.shoot(0.9, def.id);
+  }
 
-    this.kickVel += 0.85;
-    this.kickPitch += 0.05 + Math.random() * 0.02;
-    this.flashSprite.visible = true;
-    this.flashSprite.material.rotation = Math.random() * TAU;
-    this.flashSprite.material.opacity = 1;
-    this.flashTimer = 0.055;
-    this.flashLight.intensity = 320;
+  fireShotgun(origin, dir) {
+    const def = this.def;
+    const spread = this.spreadRadians() + 0.004;
+    this._hits.clear();
+    let anyWorld = null;
+
+    for (let p = 0; p < def.pellets; p++) {
+      const rayDir = this.applySpread(dir.clone(), spread);
+      const worldHit = this.world.raycast(origin, rayDir, 90);
+      const eHit = this.enemies.raycast(origin, rayDir, worldHit ? worldHit.distance : 90);
+      if (eHit) {
+        const dmg = def.damage * (eHit.headshot ? def.headMult : 1);
+        const rec = this._hits.get(eHit.enemy) || { damage: 0, point: eHit.point, headshot: false };
+        rec.damage += dmg;
+        rec.headshot = rec.headshot || eHit.headshot;
+        this._hits.set(eHit.enemy, rec);
+        this.effects.sparks(eHit.point, rayDir.clone().negate(), eHit.headshot ? 0xffd88a : 0xffb3ef, 3);
+      } else if (worldHit) {
+        anyWorld = worldHit;
+      }
+    }
+
+    if (anyWorld) {
+      this.effects.impact(anyWorld.point, anyWorld.normal, 0xffc063);
+      this.audio.impact(anyWorld.point, this.camera);
+    }
+
+    const tip = this._end.copy(this._muzzle).addScaledVector(dir, 3.2);
+    this.effects.tracer(this._muzzle, tip, def.color);
+
+    for (const [enemy, rec] of this._hits) {
+      if (this.onHit) {
+        this.onHit({ enemy, point: rec.point, headshot: rec.headshot, damage: rec.damage, weapon: def.id });
+      }
+    }
+    this.audio.shoot(1, 'shotgun');
+  }
+
+  fireRail(origin, dir) {
+    const def = this.def;
+    const rayDir = dir.clone();
+    const worldHit = this.world.raycast(origin, rayDir, 260);
+    const eHit = this.enemies.raycast(origin, rayDir, worldHit ? worldHit.distance : 260);
+    let end;
+    if (eHit) {
+      end = eHit.point;
+      const dmg = def.damage * (eHit.headshot ? def.headMult : 1);
+      this.effects.sparks(end, rayDir.clone().negate(), 0xa8f4ff, 18);
+      this.effects.ring(eHit.point, 0x8ef8ff, 0.7, 0.4, 6);
+      if (this.onHit) {
+        this.onHit({ enemy: eHit.enemy, point: eHit.point, headshot: eHit.headshot, damage: dmg, weapon: def.id });
+      }
+    } else if (worldHit) {
+      end = worldHit.point;
+      this.effects.impact(worldHit.point, worldHit.normal, 0x8ef8ff);
+      this.effects.ring(worldHit.point, 0x8ef8ff, 0.6, 0.35, 5);
+      this.audio.impact(worldHit.point, this.camera);
+    } else {
+      end = origin.clone().addScaledVector(rayDir, 200);
+    }
+
+    // a rail beam reads as a thick, fast-fading line
+    this.effects.tracer(this._muzzle, end, 0xd8feff);
+    this.effects.tracer(this._muzzle, end, 0x8ef8ff);
+    this.effects.flash(end, 0x8ef8ff, 2.2, 0.14);
+    this.audio.shoot(1, 'rail');
+  }
+
+  fireRocket(origin, dir) {
+    const def = this.def;
+    const rayDir = this.applySpread(dir.clone(), this.spreadRadians());
+
+    const group = new THREE.Group();
+    const shell = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.12, 0.34, 4, 8),
+      new THREE.MeshBasicMaterial({ color: def.color })
+    );
+    shell.rotation.x = Math.PI / 2;
+    group.add(shell);
+    const glow = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: shellTexture(),
+        color: def.color,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    glow.scale.setScalar(1.1);
+    group.add(glow);
+    group.position.copy(this._muzzle);
+    this.scene.add(group);
+
+    this.projectiles.push({
+      mesh: group,
+      pos: this._muzzle.clone(),
+      vel: rayDir.multiplyScalar(def.speed),
+      life: 4,
+      damage: def.damage,
+      splash: def.splash,
+      radius: def.splashRadius,
+      color: def.color,
+      trail: 0,
+    });
+    this.audio.shoot(1, 'rocket');
+  }
+
+  updateProjectiles(dt) {
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      p.life -= dt;
+      const step = this._v.copy(p.vel).multiplyScalar(dt);
+      const dist = step.length();
+      const dir = step.clone().normalize();
+
+      // closest enemy along this step
+      let hitEnemy = null;
+      let hitDist = dist;
+      for (const e of this.enemies.list) {
+        if (e.dead) continue;
+        const toE = this._v.copy(e.pos).sub(p.pos);
+        const along = toE.dot(dir);
+        if (along < 0 || along > dist + e.radius) continue;
+        const perp = toE.addScaledVector(dir, -along).length();
+        if (perp < e.radius + 0.35 && along < hitDist) {
+          hitDist = along;
+          hitEnemy = e;
+        }
+      }
+
+      const worldHit = this.world.raycast(p.pos, dir, dist);
+      if (worldHit && worldHit.distance < hitDist) hitDist = worldHit.distance;
+
+      if (hitEnemy || (worldHit && worldHit.distance <= dist)) {
+        const point = p.pos.clone().addScaledVector(dir, hitDist);
+        this.explode(point, p, hitEnemy);
+        this.scene.remove(p.mesh);
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      p.pos.add(step);
+      p.mesh.position.copy(p.pos);
+      p.mesh.rotation.y += dt * 8;
+      p.trail -= dt;
+      if (p.trail <= 0) {
+        p.trail = 0.02;
+        this.effects.spawn(p.pos.x, p.pos.y, p.pos.z, 0, 0, 0, 0xffa63c, 0.22, 0.22, 0, 3);
+      }
+      if (p.life <= 0) {
+        this.explode(p.pos.clone(), p, null);
+        this.scene.remove(p.mesh);
+        this.projectiles.splice(i, 1);
+      }
+    }
+  }
+
+  explode(point, p, directTarget) {
+    const def = this.def;
+    this.effects.explosion(point, def.color);
+    this.effects.flash(point, def.color, 7, 0.24);
+    this.effects.ring(point, def.color, 1.4, 0.5, 12);
+    this.audio.explosion();
+    this.player.addShake(0.3);
+
+    if (directTarget && this.onHit) {
+      this.onHit({ enemy: directTarget, point, headshot: false, damage: p.damage, weapon: def.id });
+    }
+    // splash to everything else nearby (the direct target already took full damage)
+    const hits = this.enemies.damageRadius(point, p.radius, p.splash, directTarget);
+    for (const h of hits) {
+      if (this.onHit) {
+        this.onHit({ enemy: h.enemy, point, headshot: false, damage: h.damage, weapon: def.id, splash: true });
+      }
+    }
+
+    // rocket jumping: knock yourself away from the blast, with light damage
+    const toPlayer = this.player.pos.clone().add(new THREE.Vector3(0, 0.9, 0)).sub(point);
+    const d = toPlayer.length();
+    if (d < p.radius * 1.15 && d > 0.001) {
+      const falloff = Math.max(0, 1 - d / (p.radius * 1.15));
+      toPlayer.normalize();
+      const power = 12 + falloff * 15;
+      this.player.vel.x += toPlayer.x * power;
+      this.player.vel.z += toPlayer.z * power;
+      this.player.vel.y = Math.max(this.player.vel.y, toPlayer.y * power * 0.85 + 4.2 * falloff);
+      this.player.onGround = false;
+      this.player.fovKick += 6 * falloff;
+      if (falloff > 0.35) this.player.damage(Math.round(5 * falloff), point);
+    }
+  }
+
+  clearProjectiles() {
+    for (const p of this.projectiles) this.scene.remove(p.mesh);
+    this.projectiles = [];
   }
 }
 
-let _muzzleTex = null;
-function muzzleTexture() {
-  if (_muzzleTex) return _muzzleTex;
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+let _shellTex = null;
+function shellTexture() {
+  if (_shellTex) return _shellTex;
   const size = 128;
   const c = document.createElement('canvas');
   c.width = size;
@@ -326,16 +698,7 @@ function muzzleTexture() {
   grad.addColorStop(1, 'rgba(255,120,0,0)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
-  // star spikes
-  ctx.strokeStyle = 'rgba(255,240,200,0.9)';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(size / 2, 8);
-  ctx.lineTo(size / 2, size - 8);
-  ctx.moveTo(8, size / 2);
-  ctx.lineTo(size - 8, size / 2);
-  ctx.stroke();
-  _muzzleTex = new THREE.CanvasTexture(c);
-  _muzzleTex.colorSpace = THREE.SRGBColorSpace;
-  return _muzzleTex;
+  _shellTex = new THREE.CanvasTexture(c);
+  _shellTex.colorSpace = THREE.SRGBColorSpace;
+  return _shellTex;
 }
