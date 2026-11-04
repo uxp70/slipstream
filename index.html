@@ -36,9 +36,11 @@
           <div class="value" id="score-num">0</div>
         </div>
         <div class="stat-sub">BEST <span id="best-num">0</span></div>
+        <div class="perf-line"><span id="fps">60</span> FPS · <span id="quality-label">AUTO</span></div>
       </div>
 
       <div class="hud-corner tc">
+        <div class="wave-label" id="map-name">CIRCUIT</div>
         <div class="wave-label">WAVE</div>
         <div class="wave-value" id="wave-num">1</div>
         <div class="wave-left"><span id="wave-left">0</span> HOSTILES</div>
@@ -75,6 +77,20 @@
       </div>
 
       <div class="hud-bottom-right">
+        <div id="weapon-strip">
+          <button type="button" class="wslot active" data-slot="0" aria-label="Rifle">
+            <b>1</b><span class="wname">RIFLE</span><span class="wcount"><span class="wammo">30</span>/<span class="wmag">30</span></span>
+          </button>
+          <button type="button" class="wslot" data-slot="1" aria-label="Shotgun">
+            <b>2</b><span class="wname">BREACH</span><span class="wcount"><span class="wammo">6</span>/<span class="wmag">6</span></span>
+          </button>
+          <button type="button" class="wslot" data-slot="2" aria-label="Railgun">
+            <b>3</b><span class="wname">LANCE</span><span class="wcount"><span class="wammo">5</span>/<span class="wmag">5</span></span>
+          </button>
+          <button type="button" class="wslot" data-slot="3" aria-label="Launcher">
+            <b>4</b><span class="wname">HAVOC</span><span class="wcount"><span class="wammo">4</span>/<span class="wmag">4</span></span>
+          </button>
+        </div>
         <div class="ammo">
           <div class="ammo-row">
             <span id="ammo-cur">30</span><span class="ammo-sep">/</span><span id="ammo-mag">30</span>
@@ -119,6 +135,23 @@
         <h1 class="title">SLIP<span>STREAM</span></h1>
         <p class="tagline">Keep your speed. Chain your jumps. Vaporize the swarm.</p>
         <p class="tagline touch-only">Stick to move · drag to aim · hold FIRE. Best in landscape.</p>
+
+        <div class="map-picker">
+          <div class="picker-label">SELECT ARENA</div>
+          <div class="map-cards">
+            <button type="button" class="map-card sel" data-map="circuit"><b>CIRCUIT</b><span>SINGLE ATRIUM</span></button>
+            <button type="button" class="map-card" data-map="spire"><b>SPIRE</b><span>VERTICAL</span></button>
+            <button type="button" class="map-card" data-map="rift"><b>RIFT</b><span>CANYON</span></button>
+          </div>
+          <div class="map-blurb" id="map-blurb">SINGLE ATRIUM — Ring loop, raised core, even cover.</div>
+        </div>
+
+        <div class="graphics-row">
+          <span class="picker-label">GRAPHICS</span>
+          <button type="button" class="qbtn sel" data-quality="auto">AUTO</button>
+          <button type="button" class="qbtn" data-quality="high">HIGH</button>
+          <button type="button" class="qbtn" data-quality="performance">FRAMES</button>
+        </div>
         <button id="btn-start" class="cta">CLICK TO JACK IN</button>
         <div class="controls controls-desktop">
           <div><kbd>W A S D</kbd><span>MOVE</span></div>
@@ -140,7 +173,7 @@
           <div><kbd>R</kbd><span>RELOAD</span></div>
           <div><kbd>II</kbd><span>PAUSE</span></div>
         </div>
-        <div class="hintline">Hold <b>A</b> or <b>D</b> while turning in the air to gain speed. Momentum is the weapon.</div>
+        <div class="hintline">Hold <b>A</b> or <b>D</b> while turning in the air to gain speed. Weapons <b>1</b>–<b>4</b>, cycle with <b>Q</b> or the wheel.</div>
         <div class="best-line">BEST SCORE <b id="start-best">0</b></div>
       </div>
     </div>
@@ -162,7 +195,7 @@
             <b id="vol-val">70</b>
           </label>
         </div>
-        <div class="keys">WASD move · SPACE bhop · CTRL slide · SHIFT dash · LMB fire · RMB focus · R reload</div>
+        <div class="keys">WASD move · SPACE bhop · CTRL slide · SHIFT dash · 1-4 / Q weapons · LMB fire · RMB focus · R reload</div>
       </div>
     </div>
 
