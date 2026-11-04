@@ -27,6 +27,7 @@ export class Input {
     this.virtualEdges = new Set();
     this.virtualMouse = new Set();
     this.virtualMouseEdges = new Set();
+    this.wheel = 0;
 
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
@@ -69,6 +70,16 @@ export class Input {
     window.addEventListener('contextmenu', (e) => {
       if (this.locked || this.fallback) e.preventDefault();
     });
+
+    // mouse wheel cycles weapons, same as Q
+    window.addEventListener(
+      'wheel',
+      (e) => {
+        if (!this.locked && !this.fallback) return;
+        this.wheel += e.deltaY > 0 ? 1 : -1;
+      },
+      { passive: true }
+    );
 
     document.addEventListener('pointerlockerror', () => {
       if (this.onLockError) this.onLockError();
@@ -128,6 +139,12 @@ export class Input {
     this.touchLook.dx = 0;
     this.touchLook.dy = 0;
     return out;
+  }
+
+  consumeWheel() {
+    const w = this.wheel;
+    this.wheel = 0;
+    return w;
   }
 
   endFrame() {

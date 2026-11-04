@@ -29,6 +29,7 @@ export class TouchControls {
     this.bindHold('tb-jump', 'key', 'Space');
     this.bindPress('tb-dash', 'ShiftLeft');
     this.bindPress('tb-reload', 'KeyR');
+    this.bindWeaponSlots();
 
     const pause = document.getElementById('tb-pause');
     if (pause) {
@@ -195,6 +196,21 @@ export class TouchControls {
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', release);
     el.addEventListener('lostpointercapture', release);
+  }
+
+  // Tapping a slot in the HUD weapon strip fires the same Digit key a keyboard
+  // player would press, so weapon selection has one code path.
+  bindWeaponSlots() {
+    const slots = document.querySelectorAll('#weapon-strip .wslot');
+    slots.forEach((el, i) => {
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!this.enabled) return;
+        this.input.pressVirtualKey(`Digit${i + 1}`);
+      });
+      el.addEventListener('contextmenu', (e) => e.preventDefault());
+    });
   }
 
   // -------------------------------------------------------------------- state
