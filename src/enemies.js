@@ -50,6 +50,8 @@ export const ENEMY_TYPES = {
   },
 };
 
+const TYPE_ORDER = ['drifter', 'skitter', 'sentry'];
+
 export class EnemyManager {
   constructor(scene, audio, effects, world, camera) {
     this.scene = scene;
@@ -64,6 +66,13 @@ export class EnemyManager {
     this.wave = 1;
     this.time = 0;
     this.onPickup = null;
+    // ---- squad co-op
+    // Every enemy carries an id so guests can refer to it, remote bodies are
+    // extra things enemies may hit, and a guest drives visuals from the host's
+    // snapshots instead of running the AI (mirrorStep).
+    this._nextId = 1;
+    this.netMirror = false;
+    this.remoteTargets = [];
     this._v = new THREE.Vector3();
     this._p = new THREE.Vector3();
     this._d = new THREE.Vector3();
@@ -106,7 +115,7 @@ export class EnemyManager {
     return best.clone();
   }
 
-  spawn(type, playerPos) {
+  spawn(type, playerPos, opts = {}) {
     const cfg = ENEMY_TYPES[type];
     const group = new THREE.Group();
     const hpScale = 1 + (this.wave - 1) * 0.075;
@@ -172,16 +181,19 @@ export class EnemyManager {
     eye.position.z = cfg.radius * 0.82;
     group.add(eye);
 
-    const pos = this.pickSpawn(playerPos);
-    pos.y = cfg.baseY;
+    const pos = opts.pos ? opts.pos.clone() : this.pickSpawn(playerPos);
+    if (!opts.pos) pos.y = cfg.baseY;
     group.position.copy(pos);
-    group.scale.setScalar(0.01);
+    group.scale.setScalar(opts.silent ? 1 : 0.01);
     this.scene.add(group);
 
-    this.effects.ring(pos.clone().setY(Math.max(0.05, pos.y - cfg.baseY + 0.1)), cfg.color, 0.7, 0.45, 5);
-    this.effects.burst(pos, cfg.color, 22, 5, 0.14, 0.5, 2);
+    if (!opts.silent) {
+      this.effects.ring(pos.clone().setY(Math.max(0.05, pos.y - cfg.baseY + 0.1)), cfg.color, 0.7, 0.45, 5);
+      this.effects.burst(pos, cfg.color, 22, 5, 0.14, 0.5, 2);
+    }
 
     this.list.push({
+      id: opts.id ?? this._nextId++,
       type,
       cfg,
       group,
@@ -201,7 +213,8 @@ export class EnemyManager {
       fireTimer: 1 + Math.random() * 2,
       charge: 0,
       flash: 0,
-      spawnT: 0,
+      spawnT: opts.silent ? 1 : 0,
+      netTarget: pos.clone(),
       dead: false,
       deadTimer: 0,
       score: cfg.score,
@@ -338,7 +351,9 @@ export class EnemyManager {
         desired.copy(flat).multiplyScalar(e.speed);
         desired.y = Math.sin(time * 4 + e.phase) * 0.8;
         if (dist < 1.9) {
-          player.damage(e.cfg.damage, e.pos);
+          if (!this.hitRemoteNear(e.pos, 1.9, e.cfg.damage, e.cfg.color)) {
+            player.damage(e.cfg.damage, e.pos);
+          }
           this.effects.explosion(e.pos, e.cfg.color);
           this.audio.enemyDie(e.pos, this.camera);
           e.dead = true;
@@ -410,9 +425,10 @@ export class EnemyManager {
       p.mesh.rotation.y += dt * 5;
 
       const hitPlayer = p.pos.distanceTo(playerCenter) < 0.75 + p.radius;
+      const hitRemote = this.hitRemoteNear(p.pos, 0.75 + p.radius, p.damage, p.color);
       const wHit = this.world.raycast(p.pos, this._d.copy(p.vel).normalize(), p.vel.length() * dt + 0.4);
-      if (hitPlayer) {
-        player.damage(p.damage, p.pos);
+      if (hitPlayer || hitRemote) {
+        if (hitPlayer) player.damage(p.damage, p.pos);
         this.effects.burst(p.pos, p.color, 16, 5, 0.16, 0.4, 4);
         this.effects.flash(p.pos, p.color, 2.4, 0.16);
         this.removeProjectile(i);
@@ -530,6 +546,7 @@ export class EnemyManager {
       this.scene.add(group);
 
       this.projectiles.push({
+        id: this._nextId++,
         mesh: group,
         pos,
         vel: dir.multiplyScalar(speed * (0.92 + Math.random() * 0.12)),
@@ -558,8 +575,158 @@ export class EnemyManager {
     return this.list.filter((e) => !e.dead).length + this.queue.length;
   }
 
+  // ------------------------------------------------------------ squad co-op
+  hitRemoteNear(point, radius, damage, color) {
+    for (const target of this.remoteTargets) {
+      if (!target || target.dead) continue;
+      if (target.pos.distanceTo(point) < radius + 0.55) {
+        target.damage(damage, point);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  byId(id) {
+    for (const e of this.list) if (e.id === id) return e;
+    return null;
+  }
+
+  // host: compact rows for the snapshot (2 decimals is well under a unit at
+  // this scale, and keeps packets small enough for 15 Hz updates)
+  netRows() {
+    const rows = [];
+    for (const e of this.list) {
+      rows.push([
+        e.id,
+        TYPE_ORDER.indexOf(e.type),
+        round2(e.pos.x),
+        round2(e.pos.y),
+        round2(e.pos.z),
+        Math.max(0, Math.round((e.hp / e.maxHp) * 100)),
+        e.charge > 0 ? 1 : 0,
+        e.dead ? 1 : 0,
+      ]);
+    }
+    return rows;
+  }
+
+  shotRows() {
+    const rows = [];
+    for (const p of this.projectiles) {
+      rows.push([p.id, round2(p.pos.x), round2(p.pos.y), round2(p.pos.z), p.color]);
+    }
+    return rows;
+  }
+
+  // guest: rebuild the wave from the host's rows, keeping visuals local
+  applyMirror(rows, shots) {
+    if (!this._seen) this._seen = new Set();
+    const seen = this._seen;
+    seen.clear();
+
+    for (const r of rows) {
+      const id = r[0];
+      seen.add(id);
+      let e = this.byId(id);
+      if (!e) {
+        if (r[7]) continue;
+        this.spawn(TYPE_ORDER[r[1]] || 'drifter', null, {
+          pos: new THREE.Vector3(r[2], r[3], r[4]),
+          id,
+          silent: true,
+        });
+        e = this.byId(id);
+        if (!e) continue;
+      }
+      e.netTarget.set(r[2], r[3], r[4]);
+      if (e.pos.distanceTo(e.netTarget) > 14) e.pos.copy(e.netTarget);
+      e.hp = Math.max(0, (r[5] / 100) * e.maxHp);
+      e.charge = r[6] ? Math.max(e.charge, 0.001) : 0;
+      if (r[7] && !e.dead) this.mirrorKill(e);
+    }
+
+    for (const e of this.list) {
+      if (!seen.has(e.id) && !e.dead) this.mirrorKill(e);
+    }
+
+    if (shots) this.mirrorShots(shots);
+  }
+
+  mirrorKill(e) {
+    e.dead = true;
+    e.deadTimer = 0;
+    this.effects.explosion(e.pos, e.cfg.color);
+    this.audio.enemyDie(e.pos, this.camera);
+  }
+
+  mirrorShots(rows) {
+    if (!this.netShots) this.netShots = new Map();
+    if (!this._seenShots) this._seenShots = new Set();
+    const seen = this._seenShots;
+    seen.clear();
+    for (const r of rows) {
+      seen.add(r[0]);
+      let mesh = this.netShots.get(r[0]);
+      if (!mesh) {
+        mesh = makeShotMesh(r[4]);
+        this.scene.add(mesh);
+        this.netShots.set(r[0], mesh);
+      }
+      mesh.position.set(r[1], r[2], r[3]);
+    }
+    for (const [id, mesh] of this.netShots) {
+      if (seen.has(id)) continue;
+      this.scene.remove(mesh);
+      this.netShots.delete(id);
+    }
+  }
+
+  // guest: animation only — positions come from the host, so no steering or
+  // damage resolution happens here
+  mirrorStep(dt, time) {
+    const focus = this.camera ? this.camera.position : null;
+    for (const e of this.list) {
+      if (e.dead) {
+        e.deadTimer += dt;
+        e.group.scale.multiplyScalar(Math.max(0, 1 - dt * 12));
+        continue;
+      }
+      e.pos.lerp(e.netTarget, Math.min(1, dt * 16));
+      e.group.position.copy(e.pos);
+      if (focus) e.group.lookAt(focus.x, e.pos.y - 0.1, focus.z);
+      e.cage.rotation.y += dt * 0.9;
+      e.cage.rotation.x += dt * 0.5;
+      e.ring.rotation.z += dt * 2.2;
+      if (e.group.userData.ring2) e.group.userData.ring2.rotation.z -= dt * 2.4;
+      e.flash = Math.max(0, e.flash - dt * 4.5);
+      const glow = e.charge > 0 ? Math.sin(time * 40) * 0.5 + 0.5 : 0;
+      e.core.material.emissiveIntensity = 1.5 + e.flash * 7 + glow * 3.5;
+      e.core.material.emissive.setHex(e.charge > 0 ? 0xffffff : e.cfg.emissive);
+      e.headPos.copy(e.pos);
+      e.headPos.y += e.radius * 0.5;
+    }
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const e = this.list[i];
+      if (e.dead && e.deadTimer > 0.4) {
+        this.scene.remove(e.group);
+        this.list.splice(i, 1);
+      }
+    }
+    if (this.netShots) {
+      for (const mesh of this.netShots.values()) {
+        mesh.rotation.y += dt * 5;
+        mesh.rotation.x += dt * 6;
+      }
+    }
+  }
+
   clear() {
     for (const e of this.list) this.scene.remove(e.group);
+    if (this.netShots) {
+      for (const m of this.netShots.values()) this.scene.remove(m);
+      this.netShots.clear();
+    }
     for (const p of this.projectiles) this.scene.remove(p.mesh);
     for (const p of this.pickups) this.scene.remove(p.group);
     this.list = [];
@@ -589,6 +756,30 @@ function easeOutBack(t) {
   const c1 = 1.70158;
   const c3 = c1 + 1;
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+function round2(v) {
+  return Math.round(v * 100) / 100;
+}
+
+function makeShotMesh(color) {
+  const group = new THREE.Group();
+  group.add(
+    new THREE.Mesh(new THREE.IcosahedronGeometry(0.26, 0), new THREE.MeshBasicMaterial({ color }))
+  );
+  const halo = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      color,
+      transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      map: sharedGlow(),
+    })
+  );
+  halo.scale.setScalar(2.1);
+  group.add(halo);
+  return group;
 }
 
 let _glow = null;
