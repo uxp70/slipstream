@@ -15,7 +15,7 @@ is held":
 - **Projection-limited acceleration** on the ground, so turning while moving
   re-projects your speed instead of resetting it.
 - **Air strafing**: in air, only the component of velocity along the wish
-direction is limited (Quake's `AirAccelerate`), which is what lets you gain
+  direction is limited (Quake's `AirAccelerate`), which is what lets you gain
   speed by strafing in a circle. Gains taper near the speed cap so momentum
   stays controllable.
 - **Auto-bunnyhop**: holding jump re-jumps on landing, and the jump is applied
