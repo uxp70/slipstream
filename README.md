@@ -66,6 +66,25 @@ shapes:
 Each arena brings its own collider set, spawn ring, fog colour and jump-pad
 placement; the start screen shows a blurb for the selected map.
 
+## Difficulties
+
+Three tiers, chosen on the start screen and remembered between sessions:
+
+| Tier | Wave size | Hostiles | Wave-clear repair |
+| --- | --- | --- | --- |
+| **ROOKIE** | ~35% fewer | 0.8× health, 0.9× speed, 0.65× damage, slower shots | +25 integrity |
+| **STANDARD** | baseline | 1× everything | +15 integrity |
+| **OVERCLOCK** | ~45% more | 1.3× health, 1.1× speed, 1.45× damage, faster shots | +8 integrity |
+
+The tiers only scale levers the wave already has — how many hostiles spawn per
+wave, their health, speed, projectile and melee damage, and the gap between their
+shots — so no enemy needs a second rule set and the arenas stay readable. Combo
+and score rules are identical on every tier, so best scores are comparable, and
+the HUD's arena label carries the tier while you play (`CIRCUIT · OVERCLOCK`).
+
+In co-op the host's tier applies to the whole squad: it travels with the run
+start, and a guest who presses a tier button is told the host decides.
+
 ## Squad co-op (online)
 
 Up to four players fight the same wave together. The host presses **CREATE
@@ -173,7 +192,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 
 | File | Role |
 | --- | --- |
-| `src/main.js` | Boot, loop, game state, DOM wiring, map selection, adaptive quality |
+| `src/main.js` | Boot, loop, game state, DOM wiring, map and difficulty selection, adaptive quality |
 | `src/player.js` | Movement, collision, camera, dash, slide |
 | `src/input.js` | Keyboard/mouse plus the virtual input used by touch |
 | `src/touch.js` | Thumbstick, look surface, on-screen buttons, weapon strip |
@@ -181,6 +200,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/weaponModels.js` | Viewmodels, muzzle flash, merged by material |
 | `src/maps.js` | The three arena layouts |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
+| `src/difficulty.js` | Difficulty tiers and the levers each one scales |
 | `src/enemies.js` | Waves, AI steering, projectiles, pickups, radius damage |
 | `src/net.js` | PeerJS transport: room codes, hosting, dialling, packets |
 | `src/remote.js` | Teammate avatars, interpolation and name tags |
@@ -203,9 +223,10 @@ the active mode on the start screen.
 ## Verification
 
 - `test/features.mjs`: map selection (three distinct layouts, pads, spawns,
-  merged batches), weapon switching and per-weapon ammo, projectile and splash
-  damage, FRAMES/AUTO quality behaviour, draw-call budget, and console error
-  checks on desktop and touch.
+  merged batches), difficulty scaling (wave size, enemy health, damage, speed and
+  the wave-clear repair), weapon switching and per-weapon ammo, projectile and
+  splash damage, FRAMES/AUTO quality behaviour, draw-call budget, and console
+  error checks on desktop and touch.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
   390×844 portrait, plus a desktop regression run) checking stick movement, look
   deltas, firing, reload, jump, dash cooldown, pause/resume, portrait FOV, weapon
