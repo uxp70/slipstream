@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MAPS, MAP_BUILDERS } from './maps.js';
+import { artForMap } from './events.js';
 
 // Arena geometry + collision AABBs + ray queries against the level.
 // Static solids are merged into three batches (bodies, neon edges, glowing
@@ -47,6 +48,9 @@ export class World {
     });
     this.merged = [];
     this.decorMeshes = [];
+    this.faces = [];
+    this.signs = [];
+    this.art = DEFAULT_ART;
 
     this.buildSky();
     this.buildFloor();
@@ -78,15 +82,13 @@ export class World {
   }
 
   horizonStrips(bounds, height) {
+    const art = this.art || DEFAULT_ART;
     const stripMat =
       this.stripMat ||
-      (this.stripMat = new THREE.MeshBasicMaterial({
-        color: 0x2ce0ff,
-        transparent: true,
-        opacity: 0.5,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }));
+      (this.stripMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
+    stripMat.color.setHex(art.strips.color);
+    stripMat.opacity = art.strips.opacity;
+    stripMat.blending = art.strips.additive ? THREE.AdditiveBlending : THREE.NormalBlending;
     for (const [x, z, w, d] of [
       [0, -bounds + 0.8, bounds * 2 - 2, 0.12],
       [0, bounds - 0.8, bounds * 2 - 2, 0.12],
@@ -108,12 +110,18 @@ export class World {
     const edgeCol = [];
     const caps = [];
     const c = new THREE.Color();
+    // paint hooks: an event maps the arena's neon colours onto its own palette
+    const art = this.art || DEFAULT_ART;
+    const paintBody = painter(art.bodies.paint);
+    const paintEdge = painter(art.edges.paint);
+    const paintCap = painter(art.caps.paint);
+    const solidCaps = !!art.caps.solid;
 
     for (const b of this.boxes) {
       const geo = new THREE.BoxGeometry(b.w, b.h, b.d);
       geo.translate(b.cx, b.y + b.h / 2, b.cz);
       const n = geo.attributes.position.count;
-      c.set(b.color);
+      c.set(paintBody(b.color));
       const col = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) {
         col[i * 3] = c.r;
@@ -133,7 +141,7 @@ export class World {
         [x0, y0, z0], [x1, y0, z0], [x0, y0, z1], [x1, y0, z1],
         [x0, y1, z0], [x1, y1, z0], [x0, y1, z1], [x1, y1, z1],
       ];
-      c.set(b.edge);
+      c.set(paintEdge(b.edge));
       for (const [a, bb] of EDGE_INDEX) {
         const p = corners[a];
         const q = corners[bb];
@@ -141,17 +149,20 @@ export class World {
         for (let i = 0; i < 2; i++) edgeCol.push(c.r, c.g, c.b);
       }
 
-      if (b.h > 0.5 && b.capOpacity > 0.02) {
+      if (b.h > 0.5 && (solidCaps || b.capOpacity > 0.02)) {
         const cap = new THREE.PlaneGeometry(b.w * 0.94, b.d * 0.94);
         cap.rotateX(-Math.PI / 2);
         cap.translate(b.cx, b.y + b.h + 0.012, b.cz);
         const cn = cap.attributes.position.count;
-        c.set(b.cap);
+        c.set(paintCap(b.cap));
         const ca = new Float32Array(cn * 3);
+        // additive caps carry their brightness in the vertex colour; a solid
+        // roof just takes the painted colour at face value
+        const k = solidCaps ? 1 : b.capOpacity * 4;
         for (let i = 0; i < cn; i++) {
-          ca[i * 3] = c.r * b.capOpacity * 4;
-          ca[i * 3 + 1] = c.g * b.capOpacity * 4;
-          ca[i * 3 + 2] = c.b * b.capOpacity * 4;
+          ca[i * 3] = c.r * k;
+          ca[i * 3 + 1] = c.g * k;
+          ca[i * 3 + 2] = c.b * k;
         }
         cap.setAttribute('color', new THREE.BufferAttribute(ca, 3));
         caps.push(cap);
@@ -188,6 +199,9 @@ export class World {
       this.root.add(mesh);
       this.merged.push(mergedCaps);
     }
+
+    this.bakeFaces();
+    this.bakeSigns();
   }
 
   clear() {
@@ -200,6 +214,128 @@ export class World {
     this.pads = [];
     this.decor = [];
     this.boxes = [];
+    this.faces.length = 0;
+    this.signs.length = 0;
+  }
+
+  // ------------------------------------------------------------- art direction
+  // Render state only: one call restyles the arena for the event that owns it
+  // without touching a single collider.
+  applyArt(art) {
+    this.art = art;
+    const L = this.lights;
+
+    const u = this.sky.material.uniforms;
+    u.top.value.setHex(art.sky.top);
+    u.bottom.value.setHex(art.sky.bottom);
+    u.glow.value.setHex(art.sky.horizon);
+    u.power.value = art.sky.horizonPower;
+    u.haze.value = art.sky.haze;
+    this.stars.visible = art.sky.stars > 0.01;
+    this.stars.material.opacity = art.sky.stars;
+
+    L.hemi.color.setHex(art.light.hemi.sky);
+    L.hemi.groundColor.setHex(art.light.hemi.ground);
+    L.hemi.intensity = art.light.hemi.intensity;
+    for (const id of ['key', 'rim', 'fill']) {
+      const light = L[id];
+      const spec = art.light[id];
+      light.color.setHex(spec.color);
+      light.intensity = spec.intensity;
+      if (spec.pos) light.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    }
+    L.core.color.setHex(art.light.core.color);
+    L.core.intensity = art.light.core.intensity;
+    this.coreBase = art.light.core.intensity;
+
+    this.bodyMat.emissive.setHex(art.bodyEmissive);
+    // additive blending is the whole neon read: without it the edges become
+    // shadow lines on a lit surface instead of glowing wireframe
+    this.edgeMat.blending = art.edges.additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+    this.edgeMat.opacity = art.edges.opacity;
+    this.capMat.blending = art.caps.additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+    this.capMat.opacity = art.caps.opacity;
+
+    if (this.stripMat) {
+      this.stripMat.color.setHex(art.strips.color);
+      this.stripMat.opacity = art.strips.opacity;
+      this.stripMat.blending = art.strips.additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+    }
+    if (this.decorMat) this.decorMat.color.setHex(art.decor);
+
+    const tex = groundTexture(art.ground.texture);
+    tex.repeat.set(art.ground.repeat, art.ground.repeat);
+    this.floorMat.map = tex;
+    this.floorMat.needsUpdate = true;
+  }
+
+  // A flat quad on a wall (window, door, painted board). Merged into its own
+  // batch with no collider, so facade detail costs no raycast work.
+  face(f) {
+    this.faces.push({ color: 0x1b2126, ry: 0, rx: 0, ...f });
+  }
+
+  // A lettered board. Every sign shares one atlas, so a whole street of them is
+  // one mesh and one texture.
+  sign(s) {
+    this.signs.push(s);
+  }
+
+  bakeFaces() {
+    if (!this.faces.length) return;
+    const geos = [];
+    const c = new THREE.Color();
+    for (const f of this.faces) {
+      const g = new THREE.PlaneGeometry(f.w, f.h);
+      const n = g.attributes.position.count;
+      c.set(f.color);
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        col[i * 3] = c.r;
+        col[i * 3 + 1] = c.g;
+        col[i * 3 + 2] = c.b;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      if (f.rx) g.rotateX(f.rx);
+      if (f.ry) g.rotateY(f.ry);
+      g.translate(f.x, f.y, f.z);
+      geos.push(g);
+    }
+    const mat = this.faceMat || (this.faceMat = new THREE.MeshLambertMaterial({ vertexColors: true }));
+    this.addBatch(mergeGeometries(geos, false), geos, mat);
+  }
+
+  bakeSigns() {
+    if (!this.signs.length) return;
+    const atlas = signAtlas(this.signs.map((s) => s.name));
+    const geos = [];
+    for (const s of this.signs) {
+      const g = new THREE.PlaneGeometry(s.w, s.h);
+      const uv = g.attributes.uv;
+      const cell = atlas.cells[atlas.index[s.name]] || atlas.cells[0];
+      for (let i = 0; i < uv.count; i++) {
+        uv.setXY(
+          i,
+          cell.u0 + uv.getX(i) * (cell.u1 - cell.u0),
+          cell.v0 + uv.getY(i) * (cell.v1 - cell.v0)
+        );
+      }
+      if (s.ry) g.rotateY(s.ry);
+      g.translate(s.x, s.y, s.z);
+      geos.push(g);
+    }
+    const mat = this.signMat || (this.signMat = new THREE.MeshBasicMaterial({ map: atlas.texture }));
+    mat.map = atlas.texture;
+    this.addBatch(mergeGeometries(geos, false), geos, mat);
+  }
+
+  addBatch(merged, sources, mat) {
+    sources.forEach((g) => g.dispose());
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    this.root.add(mesh);
+    this.merged.push(merged);
   }
 
   // --------------------------------------------------------------- sky/floor
@@ -212,6 +348,8 @@ export class World {
         top: { value: new THREE.Color(0x02030a) },
         bottom: { value: new THREE.Color(0x0a1a30) },
         glow: { value: new THREE.Color(0x1e6b8a) },
+        power: { value: 9 },
+        haze: { value: 0.55 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vPos;
@@ -224,13 +362,15 @@ export class World {
         uniform vec3 top;
         uniform vec3 bottom;
         uniform vec3 glow;
+        uniform float power;
+        uniform float haze;
         varying vec3 vPos;
         void main() {
           vec3 n = normalize(vPos);
           float h = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
           vec3 col = mix(bottom, top, pow(h, 0.9));
-          float horizon = pow(1.0 - abs(n.y), 9.0);
-          col += glow * horizon * 0.55;
+          float horizon = pow(1.0 - abs(n.y), power);
+          col += glow * horizon * haze;
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -275,12 +415,7 @@ export class World {
   }
 
   buildFloor() {
-    const tex = makeGridTexture();
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(12, 12);
-    tex.anisotropy = 4;
-    this.floorMat = new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff });
+    this.floorMat = new THREE.MeshBasicMaterial({ map: groundTexture('grid'), color: 0xffffff });
     this.floor = new THREE.Mesh(new THREE.PlaneGeometry(130, 130), this.floorMat);
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.matrixAutoUpdate = false;
@@ -289,7 +424,8 @@ export class World {
   }
 
   buildLights() {
-    this.scene.add(new THREE.HemisphereLight(0x4d6fa8, 0x0a0e18, 0.95));
+    const hemi = new THREE.HemisphereLight(0x4d6fa8, 0x0a0e18, 0.95);
+    this.scene.add(hemi);
 
     const key = new THREE.DirectionalLight(0xa8c8ff, 1.4);
     key.position.set(35, 60, 22);
@@ -307,6 +443,9 @@ export class World {
     core.position.set(0, 9, 0);
     this.scene.add(core);
     this.coreLight = core;
+    // kept together so an event's art direction can restyle the whole rig
+    this.lights = { hemi, key, rim, fill, core };
+    this.coreBase = 110;
   }
 
   // ---------------------------------------------------------------- map build
@@ -316,12 +455,18 @@ export class World {
     this.mapId = map.id;
     this.bounds = 43;
 
+    // the arena's event owns how it is lit and painted, so the art is in place
+    // before a single box is built
+    this.applyArt(mergeArt(DEFAULT_ART, artForMap(map.id)));
+
     const builder = MAP_BUILDERS[map.id] || MAP_BUILDERS.circuit;
     builder(this);
 
     this.buildPads();
     this.buildDecor();
     this.bake();
+    // the builder may tint the ground itself; the event's art wins when it has one
+    this.floorMat.color.setHex(this.art.ground.color ?? this.floorTint ?? 0xffffff);
     this.resetPads();
     return map;
   }
@@ -331,15 +476,15 @@ export class World {
     const ringGeo = this.padRingGeo || (this.padRingGeo = new THREE.RingGeometry(1.28, 1.6, 40));
     const discGeo = this.padDiscGeo || (this.padDiscGeo = new THREE.CylinderGeometry(1.5, 1.7, 0.18, 32));
     const colGeo = this.padColGeo || (this.padColGeo = new THREE.CylinderGeometry(0.95, 1.15, 6, 20, 1, true));
-    const discMat =
-      this.padDiscMat ||
-      (this.padDiscMat = new THREE.MeshStandardMaterial({
-        color: 0x2a1a0a,
-        emissive: 0xffa63c,
-        emissiveIntensity: 1.4,
-        roughness: 0.4,
-        metalness: 0.6,
-      }));
+    const pads = (this.art || DEFAULT_ART).pads;
+    this.padDiscMat?.dispose();
+    const discMat = (this.padDiscMat = new THREE.MeshStandardMaterial({
+      color: pads.disc,
+      emissive: pads.emissive,
+      emissiveIntensity: pads.emissiveIntensity,
+      roughness: 0.4,
+      metalness: 0.6,
+    }));
 
     for (const [x, z] of this.padSpots || []) {
       const group = new THREE.Group();
@@ -350,7 +495,7 @@ export class World {
       const ring = new THREE.Mesh(
         ringGeo,
         new THREE.MeshBasicMaterial({
-          color: 0xffc063,
+          color: pads.ring,
           transparent: true,
           opacity: 0.85,
           side: THREE.DoubleSide,
@@ -365,7 +510,7 @@ export class World {
       const column = new THREE.Mesh(
         colGeo,
         new THREE.MeshBasicMaterial({
-          color: 0xffa63c,
+          color: pads.column,
           transparent: true,
           opacity: 0.06,
           side: THREE.DoubleSide,
@@ -390,7 +535,9 @@ export class World {
 
   buildDecor() {
     const geo = this.decorGeo || (this.decorGeo = new THREE.BoxGeometry(1, 1, 1));
-    const mat = this.decorMat || (this.decorMat = new THREE.MeshBasicMaterial({ color: 0x0a1424 }));
+    const art = this.art || DEFAULT_ART;
+    const mat = this.decorMat || (this.decorMat = new THREE.MeshBasicMaterial({ color: art.decor }));
+    mat.color.setHex(art.decor);
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = 70 + Math.random() * 60;
@@ -435,7 +582,9 @@ export class World {
       p.ring.material.opacity = p.cooldown > 0 ? 0.25 : 0.75;
       p.column.material.opacity = (p.cooldown > 0 ? 0.02 : 0.06) + Math.sin(time * 2.5) * 0.015;
     }
-    if (this.coreLight) this.coreLight.intensity = 110 + Math.sin(time * 1.6) * 22;
+    if (this.coreLight && this.coreBase > 0) {
+      this.coreLight.intensity = this.coreBase * (1 + Math.sin(time * 1.6) * 0.2);
+    }
   }
 
   // Ray vs AABB slab test over every solid, plus the ground plane.
@@ -460,6 +609,65 @@ export class World {
     }
     return best;
   }
+}
+
+// ---------------------------------------------------------------- art defaults
+// The neon baseline that every event's art is merged over. A null means "keep
+// whatever the arena or the graphics setting already picked", so an event only
+// has to state what it actually changes.
+export const DEFAULT_ART = {
+  exposure: null,
+  bloom: { strength: null, radius: null, threshold: null },
+  fog: { color: null, density: null },
+  sky: { top: 0x02030a, bottom: 0x0a1a30, horizon: 0x1e6b8a, horizonPower: 9, haze: 0.55, stars: 0.8 },
+  light: {
+    hemi: { sky: 0x4d6fa8, ground: 0x0a0e18, intensity: 0.95 },
+    key: { color: 0xa8c8ff, intensity: 1.4, pos: [35, 60, 22] },
+    rim: { color: 0xff5fd8, intensity: 0.5, pos: [-40, 24, -35] },
+    fill: { color: 0x39e6ff, intensity: 0.4, pos: [0, 18, 50] },
+    core: { color: 0x2ce0ff, intensity: 110 },
+  },
+  bodyEmissive: 0x0a1c30,
+  bodies: { paint: null },
+  edges: { additive: true, opacity: 0.36, paint: null },
+  caps: { additive: true, opacity: 0.24, solid: false, paint: null },
+  strips: { color: 0x2ce0ff, opacity: 0.5, additive: true },
+  ground: { texture: 'grid', color: null, repeat: 12 },
+  decor: 0x0a1424,
+  pads: { disc: 0x2a1a0a, emissive: 0xffa63c, emissiveIntensity: 1.4, ring: 0xffc063, column: 0xffa63c },
+};
+
+function mergeArt(base, over) {
+  if (!over) return base;
+  const out = { ...base };
+  for (const key of Object.keys(over)) {
+    const value = over[key];
+    out[key] =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? { ...(base[key] || {}), ...value }
+        : value;
+  }
+  return out;
+}
+
+// a paint table maps the colours the arena was authored with to the event's own
+function painter(table) {
+  if (!table) return (hex) => hex;
+  return (hex) => (table[hex] != null ? table[hex] : hex);
+}
+
+const _groundTex = new Map();
+function groundTexture(kind) {
+  const hit = _groundTex.get(kind);
+  if (hit) return hit;
+  const tex =
+    kind === 'dirt' ? makeDirtTexture() : kind === 'snow' ? makeSnowTexture() : makeGridTexture();
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  _groundTex.set(kind, tex);
+  return tex;
 }
 
 let _gridTex = null;
@@ -503,6 +711,165 @@ function makeGridTexture() {
   _gridTex = new THREE.CanvasTexture(c);
   _gridTex.colorSpace = THREE.SRGBColorSpace;
   return _gridTex;
+}
+
+let _dirtTex = null;
+function makeDirtTexture() {
+  if (_dirtTex) return _dirtTex;
+  const size = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#96744a';
+  ctx.fillRect(0, 0, size, size);
+
+  // every blob is stamped on a wrapped 3x3 grid, so the tile has no seams
+  const blob = (x, y, r, fill, alpha) => {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = fill;
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oy = -1; oy <= 1; oy++) {
+        ctx.beginPath();
+        ctx.arc(x + ox * size, y + oy * size, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  };
+  const tones = ['#a8854f', '#7d5c35', '#b39468', '#6f5230'];
+  for (let i = 0; i < 240; i++) {
+    blob(
+      Math.random() * size,
+      Math.random() * size,
+      6 + Math.random() * 32,
+      tones[i % tones.length],
+      0.14 + Math.random() * 0.16
+    );
+  }
+
+  // wheel ruts down the street
+  ctx.globalAlpha = 0.11;
+  ctx.strokeStyle = '#6d5335';
+  ctx.lineWidth = 10;
+  for (const y of [size * 0.32, size * 0.68]) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= size; x += 32) ctx.lineTo(x, y + Math.sin((x / size) * Math.PI * 4) * 4);
+    ctx.stroke();
+  }
+
+  // gravel and dry grass
+  for (let i = 0; i < 520; i++) {
+    ctx.globalAlpha = 0.1 + Math.random() * 0.22;
+    ctx.fillStyle = Math.random() > 0.5 ? '#6f5636' : '#d8c09a';
+    const r = 0.8 + Math.random() * 1.8;
+    ctx.fillRect(Math.random() * size, Math.random() * size, r, r);
+  }
+  ctx.globalAlpha = 1;
+  _dirtTex = new THREE.CanvasTexture(c);
+  return _dirtTex;
+}
+
+let _snowTex = null;
+function makeSnowTexture() {
+  if (_snowTex) return _snowTex;
+  const size = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e9f3f9';
+  ctx.fillRect(0, 0, size, size);
+  const tones = ['#dceaf3', '#f7fcff', '#cfe1ec', '#e2eef6'];
+  for (let i = 0; i < 200; i++) {
+    ctx.globalAlpha = 0.2 + Math.random() * 0.3;
+    ctx.fillStyle = tones[i % tones.length];
+    ctx.beginPath();
+    ctx.arc(Math.random() * size, Math.random() * size, 10 + Math.random() * 46, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // wind-blown drifts and a few surface cracks
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 6;
+  for (let i = 0; i < 14; i++) {
+    const y = Math.random() * size;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(size * 0.3, y + 18, size * 0.6, y - 16, size, y + 6);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  _snowTex = new THREE.CanvasTexture(c);
+  return _snowTex;
+}
+
+// One atlas for every sign in a street: a board with plank lines and a painted
+// trade name, drawn with the canvas API so there is no font or image asset.
+const _signCache = new Map();
+function signAtlas(names) {
+  const list = Array.from(new Set(names)).slice(0, 8);
+  const key = list.join('|');
+  const hit = _signCache.get(key);
+  if (hit) return hit;
+
+  const cols = 4;
+  const rows = 2;
+  const cw = 512;
+  const ch = 160;
+  const canvas = document.createElement('canvas');
+  canvas.width = cols * cw;
+  canvas.height = rows * ch;
+  const ctx = canvas.getContext('2d');
+
+  const index = {};
+  list.forEach((name, i) => {
+    drawSignBoard(ctx, (i % cols) * cw, Math.floor(i / cols) * ch, cw, ch, name);
+    index[name] = i;
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const cells = list.map((_, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    return { u0: col / cols, u1: (col + 1) / cols, v0: 1 - (row + 1) / rows, v1: 1 - row / rows };
+  });
+  const out = { texture, cells, index };
+  _signCache.set(key, out);
+  return out;
+}
+
+function drawSignBoard(ctx, x, y, w, h, name) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#2b1d12';
+  ctx.fillRect(0, 0, w, h);
+
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = i % 2 ? 'rgba(72,50,30,0.55)' : 'rgba(52,35,22,0.6)';
+    ctx.fillRect(0, (h / 4) * i, w, h / 4 - 2);
+  }
+  for (let i = 0; i < 110; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${0.03 + Math.random() * 0.07})`;
+    ctx.fillRect(Math.random() * w, Math.random() * h, 6 + Math.random() * 40, 1.5);
+  }
+
+  ctx.strokeStyle = '#180f08';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, w - 6, h - 6);
+
+  ctx.fillStyle = '#f3e3c0';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  let size = 76;
+  const font = (px) => `bold ${px}px Georgia, 'Times New Roman', serif`;
+  ctx.font = font(size);
+  while (ctx.measureText(name).width > w - 60 && size > 26) {
+    size -= 4;
+    ctx.font = font(size);
+  }
+  ctx.fillText(name, w / 2, h / 2 + 3);
+  ctx.restore();
 }
 
 let _dotTex = null;
