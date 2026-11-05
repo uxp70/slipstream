@@ -253,6 +253,7 @@ export class Squad {
       this.selfId = this.net.selfId;
       this.selfSlot = msg.slot | 0;
       this.game.selectMap(msg.map || this.game.mapId, true);
+      if (msg.diff) this.game.setDifficulty(msg.diff, true);
       this.codeRow?.classList.remove('hidden');
       if (this.codeEl) this.codeEl.textContent = this.net.code;
       this.hostBtn?.classList.add('hidden');
@@ -334,7 +335,7 @@ export class Squad {
       this.placeAtSlot();
       this.setStatus('IN ARENA · CODE ' + (this.net.code || '----'), 'ok');
     } else {
-      this.net.broadcast({ t: 'start', m: this.game.mapId });
+      this.net.broadcast({ t: 'start', m: this.game.mapId, d: this.game.difficulty });
       this.syncSnapshot();
     }
     this._rosterKey = 'x';
@@ -515,6 +516,11 @@ export class Squad {
       if (this.pendingWelcome) this.pendingWelcome(msg);
       return;
     }
+    if (msg.t === 'start') {
+      // the host owns the wave, so its tier is the squad's tier
+      if (msg.d) this.game.setDifficulty(msg.d, true);
+      return;
+    }
     if (msg.t === 's') {
       this.applySnapshot(msg);
       return;
@@ -558,6 +564,7 @@ export class Squad {
       slot,
       code: this.net.code,
       map: this.game.mapId,
+      diff: this.game.difficulty,
       running: this.running ? 1 : 0,
       wave: this.game.wave,
     });
