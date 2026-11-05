@@ -394,3 +394,10 @@ body.touch .speedo-val b {
     min-height: 30px;
   }
 }
+
+/* The hangar's action bar is sticky to the bottom edge of its scroll
+   container, so that container must not keep a bottom gutter: the list would
+   show through the strip underneath the bar. */
+#screen-start {
+  padding-bottom: 0;
+}
