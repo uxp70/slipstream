@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DIFFICULTIES } from './difficulty.js';
 
 const TAU = Math.PI * 2;
 
@@ -65,6 +66,9 @@ export class EnemyManager {
     this.queue = [];
     this.wave = 1;
     this.time = 0;
+    // difficulty mods, swapped by setDifficulty (see DIFFICULTIES)
+    this.difficulty = 'standard';
+    this.mods = DIFFICULTIES.standard;
     this.onPickup = null;
     // ---- squad co-op
     // Every enemy carries an id so guests can refer to it, remote bodies are
@@ -82,9 +86,13 @@ export class EnemyManager {
   // ---------------------------------------------------------------- spawning
   spawnWave(wave, playerPos) {
     this.wave = wave;
-    const drifters = Math.min(9, 2 + Math.ceil(wave * 0.8));
-    const skitters = wave >= 2 ? Math.min(7, Math.floor(wave * 0.7)) : 0;
-    const sentries = wave >= 3 ? Math.min(3, Math.floor(wave / 3)) : 0;
+    const scale = this.mods.count;
+    const drifters = Math.max(
+      1,
+      Math.min(12, Math.round(Math.min(9, 2 + Math.ceil(wave * 0.8)) * scale))
+    );
+    const skitters = wave >= 2 ? Math.min(9, Math.round(Math.min(7, Math.floor(wave * 0.7)) * scale)) : 0;
+    const sentries = wave >= 3 ? Math.min(4, Math.round(Math.min(3, Math.floor(wave / 3)) * scale)) : 0;
     const list = [];
     for (let i = 0; i < drifters; i++) list.push('drifter');
     for (let i = 0; i < skitters; i++) list.push('skitter');
@@ -118,8 +126,9 @@ export class EnemyManager {
   spawn(type, playerPos, opts = {}) {
     const cfg = ENEMY_TYPES[type];
     const group = new THREE.Group();
-    const hpScale = 1 + (this.wave - 1) * 0.075;
-    const speedScale = Math.min(1.45, 1 + (this.wave - 1) * 0.035);
+    const mods = this.mods;
+    const hpScale = (1 + (this.wave - 1) * 0.075) * mods.hp;
+    const speedScale = Math.min(1.6, (1 + (this.wave - 1) * 0.035) * mods.speed);
 
     let geo;
     if (type === 'skitter') geo = new THREE.TetrahedronGeometry(cfg.radius, 0);
@@ -205,12 +214,16 @@ export class EnemyManager {
       hp: cfg.hp * hpScale,
       maxHp: cfg.hp * hpScale,
       speed: cfg.speed * speedScale,
+      damage: cfg.damage * mods.damage,
+      fireRange: cfg.fireDelay
+        ? [cfg.fireDelay[0] * mods.fireDelay, cfg.fireDelay[1] * mods.fireDelay]
+        : null,
       radius: cfg.radius,
       headRadius: cfg.headRadius,
       headPos: new THREE.Vector3(),
       orbit: Math.random() < 0.5 ? -1 : 1,
       phase: Math.random() * TAU,
-      fireTimer: 1 + Math.random() * 2,
+      fireTimer: (1 + Math.random() * 2) * (cfg.fireDelay ? mods.fireDelay : 1),
       charge: 0,
       flash: 0,
       spawnT: opts.silent ? 1 : 0,
@@ -351,8 +364,8 @@ export class EnemyManager {
         desired.copy(flat).multiplyScalar(e.speed);
         desired.y = Math.sin(time * 4 + e.phase) * 0.8;
         if (dist < 1.9) {
-          if (!this.hitRemoteNear(e.pos, 1.9, e.cfg.damage, e.cfg.color)) {
-            player.damage(e.cfg.damage, e.pos);
+          if (!this.hitRemoteNear(e.pos, 1.9, e.damage, e.cfg.color)) {
+            player.damage(e.damage, e.pos);
           }
           this.effects.explosion(e.pos, e.cfg.color);
           this.audio.enemyDie(e.pos, this.camera);
@@ -404,7 +417,7 @@ export class EnemyManager {
         if (e.charge >= e.cfg.telegraph) {
           this.fireProjectile(e, playerCenter);
           e.charge = 0;
-          e.fireTimer = e.cfg.fireDelay[0] + Math.random() * (e.cfg.fireDelay[1] - e.cfg.fireDelay[0]);
+          e.fireTimer = e.fireRange[0] + Math.random() * (e.fireRange[1] - e.fireRange[0]);
         }
       } else {
         e.fireTimer -= dt;
@@ -551,7 +564,7 @@ export class EnemyManager {
         pos,
         vel: dir.multiplyScalar(speed * (0.92 + Math.random() * 0.12)),
         life: 4.2,
-        damage: cfg.damage,
+        damage: e.damage,
         radius: 0.3,
         color: cfg.color,
       });
@@ -573,6 +586,16 @@ export class EnemyManager {
 
   remaining() {
     return this.list.filter((e) => !e.dead).length + this.queue.length;
+  }
+
+  // ------------------------------------------------------------------ tuning
+  // Guests never run the AI, but adopting the host's tier keeps local spawns
+  // and readouts consistent with the wave the host is actually driving.
+  setDifficulty(id) {
+    const diff = DIFFICULTIES[id] || DIFFICULTIES.standard;
+    this.difficulty = diff.id;
+    this.mods = diff;
+    return diff;
   }
 
   // ------------------------------------------------------------ squad co-op
