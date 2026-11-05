@@ -58,8 +58,8 @@ export class Armory {
     this.summaryEl = document.getElementById('armory-summary');
     this.statusEl = document.getElementById('armory-status');
 
-    this.coins = readInt(COINS_KEY, 0);
-    this.armed = readArmed();
+    this.coins = readInt(this.key(COINS_KEY), 0);
+    this.armed = readArmed(this.key(ARMED_KEY));
     // effects of the run in progress; beginRun() copies the armed stacks here
     this.active = empty();
     this.statusText = 'BUFFS APPLY TO THE NEXT RUN ONLY. EVERY RUN PAYS COINS.';
@@ -95,6 +95,23 @@ export class Armory {
     });
 
     this.paint();
+  }
+
+  // an account owns the wallet, so every read and write goes through the key
+  // the signed-in operator resolves at that moment
+  key(base) {
+    return this.game.account ? this.game.account.storageKey(base) : base;
+  }
+
+  // re-read after a sign-in or sign-out: the coins and armed stacks swap with
+  // the account, and nothing in flight is applied twice
+  reload() {
+    this.coins = readInt(this.key(COINS_KEY), 0);
+    this.armed = readArmed(this.key(ARMED_KEY));
+    this.active = empty();
+    this.statusText = this.summary();
+    this.paint();
+    return this;
   }
 
   isOpen() {
@@ -211,8 +228,8 @@ export class Armory {
 
   save() {
     try {
-      localStorage.setItem(COINS_KEY, String(this.coins));
-      localStorage.setItem(ARMED_KEY, JSON.stringify(this.armed));
+      localStorage.setItem(this.key(COINS_KEY), String(this.coins));
+      localStorage.setItem(this.key(ARMED_KEY), JSON.stringify(this.armed));
     } catch {
       /* storage can be blocked; coins just won't persist */
     }
@@ -263,11 +280,11 @@ function readInt(key, fallback) {
   }
 }
 
-function readArmed() {
+function readArmed(storageKey = ARMED_KEY) {
   const out = empty();
   let raw = null;
   try {
-    raw = JSON.parse(localStorage.getItem(ARMED_KEY) || 'null');
+    raw = JSON.parse(localStorage.getItem(storageKey) || 'null');
   } catch {
     raw = null;
   }
