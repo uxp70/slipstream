@@ -140,6 +140,27 @@ buffs for the next run — and only the next run:
 - **DISARM ALL** clears the armed stacks without a refund, for when you would
   rather save the coins.
 
+## Accounts
+
+The **SIGN IN** button on the start screen opens the operator panel: a callsign
+and a passcode, either created there or entered to come back to an existing one.
+
+- The passcode is stored as a **PBKDF2-SHA-256 hash** with a per-account random
+  salt (120k iterations, via WebCrypto), never as text.
+- An account **owns the wallet, the loadout and the starting slot**, so those are
+  per-operator rather than per-device. Signing out drops you back to the guest
+  wallet; signing in brings yours back.
+- The session lasts 30 days and restores at boot, so a returning player lands
+  signed in.
+- On the online side the account **is** your identity: the callsign fills the
+  squad name and travels in the join handshake, so the roster shows the operator.
+- Co-op kills pay the shooter: the host confirms what died and sends that kill's
+  coins to the guest's account, which is why a guest's wallet still grows.
+- This is device identity, not a cloud login — the game is static files with no
+  server, so anyone with devtools can read or edit the local data. It is a real
+  progression layer between sessions and operators on one device, and the seam a
+  hosted provider would sit behind later.
+
 ## Difficulties
 
 Three tiers, chosen on the start screen and remembered between sessions:
@@ -274,6 +295,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/weaponModels.js` | Viewmodels, muzzle flash, merged by material |
 | `src/inventory.js` | Arsenal inventory: loadout slots, starting slot, persistence |
 | `src/buffs.js` | Coin balance, the buff catalogue, and the armory screen |
+| `src/account.js` | Local accounts, hashed passcodes, sessions and account-scoped storage |
 | `src/maps.js` | The five arena layouts and the map registry |
 | `src/events.js` | Event bundles (arena, enemy skin, gun skin), start-screen pickers, skin application |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
@@ -286,7 +308,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/hud.js` | HUD updates, weapon strip, map label, FPS readout, banners |
 | `src/audio.js` | Procedural Web Audio engine |
 | `src/style.css` | Base HUD and screens |
-| `src/ui.css` | Weapon strip, event and map pickers, arsenal, armory, quality controls and squad panel |
+| `src/ui.css` | Weapon strip, event and map pickers, arsenal, armory, accounts, quality controls and squad panel |
 | `src/touch.css` | Touch layout overrides and portrait handling |
 
 ## Performance
@@ -303,12 +325,13 @@ the active mode on the start screen.
   merged batches), events (one arena list per event, enemy palette and silhouette
   swaps, gun-skin colours, HUD label), the inventory (four guns and four slots,
   equipping into a slot changes what key 1 fires, starting slot, persistence and
-  reset), the armory (coin balance, buying, stacking prices, a purchase the
-  wallet cannot cover, and the buff effects the next run starts with), difficulty
-  scaling (wave size, enemy health, damage, speed and the
-  wave-clear repair), weapon switching and
-  per-weapon ammo, projectile and splash damage, FRAMES/AUTO quality behaviour,
-  draw-call budget, and console error checks on desktop and touch.
+  reset), accounts (create, hashed passcode, session restore, per-account wallet,
+  a wrong passcode refused, and a host-confirmed guest kill paying that guest),
+  the armory (coin balance, buying, stacking prices, a purchase the wallet cannot
+  cover, and the buff effects the next run starts with), difficulty scaling (wave
+  size, enemy health, damage, speed and the wave-clear repair), weapon switching
+  and per-weapon ammo, projectile and splash damage, FRAMES/AUTO quality
+  behaviour, draw-call budget, and console error checks on desktop and touch.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
   390×844 portrait, plus a desktop regression run) checking stick movement, look
   deltas, firing, reload, jump, dash cooldown, pause/resume, portrait FOV, weapon
