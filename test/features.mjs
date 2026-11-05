@@ -281,7 +281,7 @@ check(account.visible && account.closed, 'account screen opens and closes');
 check(account.signedIn === 'NOVA' && account.label === 'NOVA', 'creating an account signs you in', `${account.signedIn}/${account.label}`);
 check(account.squadName === 'NOVA', 'the account callsign becomes the squad identity', account.squadName);
 check(account.session, 'the session is remembered');
-两check(account.hashLooksHashed && !account.plainStored, 'the passcode is stored as a hash');
+check(account.hashLooksHashed && !account.plainStored, 'the passcode is stored as a hash');
 check(account.accountCoins === 750 && account.guestCoins !== 750, 'coins belong to the account', `account=${account.accountCoins} guest=${account.guestCoins}`);
 check(account.badSignIn === null && /WRONG PASSCODE/.test(account.badStatus), 'a wrong passcode is refused', account.badStatus);
 check(account.backName === 'NOVA' && account.backCoins === 750, 'signing back in restores the wallet', `${account.backName}/${account.backCoins}`);
