@@ -104,7 +104,6 @@ class Game {
     this.deathTimer = 0;
     this.overShown = false;
     this.startedAt = 0;
-    this.pendingRestart = false;
     this.best = readNumber(BEST_KEY, 0);
     this.mapId = readString(MAP_KEY, 'circuit');
     this.difficulty = readString(DIFF_KEY, 'standard');
@@ -144,6 +143,7 @@ class Game {
     this.applyQuality(this.quality, true);
     this.hud.showStart();
     this.hud.setWeapon(0);
+    this.syncStartHeadline();
 
     if (this.isTouch) {
       const startBtn = document.getElementById('btn-start');
@@ -151,7 +151,7 @@ class Game {
       const pauseKeys = document.querySelector('#screen-pause .keys');
       if (pauseKeys) pauseKeys.textContent = 'Left stick to move · drag the right side to aim · tap the weapon strip to swap';
       const overKeys = document.querySelector('#screen-over .keys');
-      if (overKeys) overKeys.textContent = 'Tap RUN IT BACK to restart';
+      if (overKeys) overKeys.textContent = 'Tap MAIN MENU to return to the hangar';
     }
 
     this.player.reset(this.world.spawnAt.clone());
@@ -260,13 +260,26 @@ class Game {
     });
 
     btnRestart.addEventListener('click', () => {
-      this.audio.ui();
-      this.restart();
+      this.audio.uiClose();
+      this.toMenu();
     });
 
-    document.getElementById('screen-over').addEventListener('click', (e) => {
-      if (e.target.id !== 'btn-restart') this.restart();
-    });
+    // The hangar panels are screens of their own, so each transition gets the
+    // short whoosh: opening sweeps up, closing sweeps down.
+    for (const [id, sound] of [
+      ['btn-arsenal', 'uiOpen'],
+      ['btn-armory', 'uiOpen'],
+      ['btn-account', 'uiOpen'],
+      ['btn-daily', 'uiOpen'],
+      ['btn-arsenal-back', 'uiClose'],
+      ['btn-armory-back', 'uiClose'],
+      ['btn-daily-back', 'uiClose'],
+      ['btn-login-back', 'uiClose'],
+    ]) {
+      document.getElementById(id)?.addEventListener('click', () => this.audio[sound]());
+    }
+
+    this.bindMenuHover();
 
     // map picker
     for (const el of document.querySelectorAll('[data-map]')) {
@@ -290,7 +303,7 @@ class Game {
     for (const el of document.querySelectorAll('[data-diff]')) {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.audio.ui();
+        this.audio.uiConfirm();
         if (this.squad.isGuest) {
           this.squad.setStatus('THE HOST SETS THE SQUAD DIFFICULTY');
           return;
@@ -320,7 +333,7 @@ class Game {
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyR' && (this.state === 'dead' || this.state === 'over')) {
-        this.restart();
+        this.toMenu();
       }
       if (e.code === 'Escape' && this.state === 'playing') {
         if (this.input.locked) this.input.unlock();
@@ -363,6 +376,7 @@ class Game {
     const blurb = document.getElementById('map-blurb');
     if (blurb) blurb.textContent = `${map.tag} — ${map.blurb}`;
     this.hud.setMap(this.mapLabel());
+    this.syncStartHeadline();
 
     this.player.reset(this.world.spawnAt.clone());
     this.renderer.compile?.(this.scene, this.camera);
@@ -388,6 +402,7 @@ class Game {
     const blurb = document.getElementById('diff-blurb');
     if (blurb) blurb.textContent = `${diff.name} — ${diff.blurb}`;
     this.hud.setMap(this.mapLabel());
+    this.syncStartHeadline();
     return diff;
   }
 
@@ -412,7 +427,7 @@ class Game {
     this.input.fallback = true;
     this.audio.init();
     this.hud.showLockNotice(true);
-    if (this.state === 'menu' || this.state === 'over') {
+    if (this.state === 'menu') {
       this.beginRun();
     } else if (this.state === 'paused') {
       this.state = 'playing';
@@ -429,9 +444,11 @@ class Game {
       this.hud.showLockNotice(false);
       this.audio.init();
       this.audio.setPaused(false);
-      if (this.state === 'menu' || this.state === 'over') {
-        this.pendingRestart = false;
+      if (this.state === 'menu') {
         this.beginRun();
+      } else if (this.state === 'over') {
+        // a stray click must not start a run behind the stats screen
+        this.toMenu();
       } else if (this.state === 'paused') {
         this.state = 'playing';
         this.hud.hidePause();
@@ -503,6 +520,7 @@ class Game {
   beginRun() {
     this.audio.init();
     this.audio.setPaused(false);
+    this.audio.setMenu(false);
 
     this.score = 0;
     this.combo = 0;
@@ -551,16 +569,66 @@ class Game {
     this.squad.onRunStart();
   }
 
-  restart() {
-    if (this.isTouch) {
-      this.beginRun();
-      return;
-    }
-    // Only start the new run once the pointer is actually captured, otherwise
-    // the player would end up in a running game with a dead mouse.
+  // A run ends on the report, not on another run: the report is a readout and
+  // what happens next is a choice. Everything the hangar shows is repainted
+  // here, so the next pick is made on numbers from the run that just ended.
+  toMenu() {
+    if (this.state === 'playing' || this.state === 'paused') return;
+    this.state = 'menu';
+    this.deathTimer = 0;
+    this.overShown = false;
+    this.hitstop = 0;
+    this.hud.hideOver();
+    this.hud.hidePause();
+    this.hud.setBoss(null, 0);
+    this.hud.setLowHp(false);
+    this.hud.off();
+    this.weapons.setVisible(false);
+    this.hud.showStart();
+    this.hud.setBest(this.best);
+    this.armory.paint();
+    this.arsenal.render();
+    this.daily.paint();
+    this.events.render();
+    this.syncStartHeadline();
+    this.audio.setMenu(true);
+    if (this.touch) this.touch.hide();
+  }
 
-    this.pendingRestart = true;
-    this.input.lock();
+  // One line, always on screen, naming exactly what the big button starts.
+  syncStartHeadline() {
+    const where = this.world.mapId.toUpperCase();
+    const tier = this.enemies.mods ? this.enemies.mods.name : 'STANDARD';
+    const mode = this.squad && this.squad.isGuest ? 'SQUAD GUEST' : 'SOLO';
+    const context = document.getElementById('start-context');
+    if (context) context.textContent = `${where} · ${tier} · ${mode}`;
+    const match = document.getElementById('match-summary');
+    const event = this.events && this.events.id ? this.events.id.toUpperCase() : 'NEON SIEGE';
+    if (match) match.textContent = `${event} · ${where} · ${tier}`;
+  }
+
+  // A hover tick on everything pressable, throttled so sliding across a row of
+  // cards reads as one sweep instead of a machine-gun of ticks.
+  bindMenuHover() {
+    const selector = 'button, .map-card, .event-card';
+    let last = 0;
+    let current = null;
+    for (const screen of document.querySelectorAll('.screen')) {
+      screen.addEventListener('pointerover', (e) => {
+        const el = e.target.closest ? e.target.closest(selector) : null;
+        if (!el || el === current) return;
+        current = el;
+        if (!this.audio.ready || el.disabled) return;
+        const now = performance.now();
+        if (now - last < 60) return;
+        last = now;
+        this.audio.uiHover();
+      });
+      screen.addEventListener('pointerout', (e) => {
+        const el = e.target.closest ? e.target.closest(selector) : null;
+        if (el && el === current) current = null;
+      });
+    }
   }
 
   startWave(n) {
