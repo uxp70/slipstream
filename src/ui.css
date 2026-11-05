@@ -818,3 +818,130 @@ body.touch #login-name,
 body.touch #login-pass {
   width: 150px;
 }
+
+/* ===================== DAILY REWARDS ===================== */
+
+.daily-row {
+  margin-top: 6px;
+}
+
+.daily-chip {
+  padding: 4px 9px;
+  background: rgba(10, 34, 28, 0.55);
+  border: 1px solid rgba(120, 255, 200, 0.32);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: rgba(150, 240, 210, 0.75);
+}
+.daily-chip b {
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: #d8fff0;
+}
+
+#daily-summary,
+#daily-status {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: rgba(170, 210, 225, 0.45);
+}
+
+#screen-daily {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px 0;
+}
+
+.daily-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  width: min(560px, 92vw);
+  margin: 0 auto 12px;
+}
+
+.daily-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 5px;
+  background: rgba(10, 20, 32, 0.6);
+  border: 1px solid rgba(99, 245, 255, 0.14);
+  font-family: var(--mono);
+  font-size: 7.5px;
+  letter-spacing: 0.12em;
+  color: rgba(170, 210, 225, 0.5);
+  text-align: center;
+}
+/* a day further down the cycle is dimmed, not hidden: the payout is the point */
+.daily-card.locked {
+  opacity: 0.55;
+}
+.daily-card.today {
+  border-color: rgba(120, 255, 200, 0.75);
+  background: rgba(14, 58, 46, 0.6);
+  box-shadow: 0 0 20px rgba(120, 255, 200, 0.18);
+}
+.daily-card.claimed {
+  border-color: rgba(255, 196, 84, 0.55);
+  background: rgba(64, 46, 12, 0.5);
+}
+.daily-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+}
+.daily-head b {
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: #eafcff;
+}
+.daily-head i {
+  font-style: normal;
+  font-size: 7px;
+  letter-spacing: 0.14em;
+  color: #ffd166;
+}
+.daily-name {
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  color: rgba(170, 210, 225, 0.55);
+}
+.daily-coins {
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 214, 130, 0.85);
+}
+
+#btn-daily-claim:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-height: 480px) {
+  .daily-days {
+    gap: 4px;
+  }
+  .daily-card {
+    padding: 5px 4px;
+  }
+  .daily-name {
+    display: none;
+  }
+}
+
+@media (orientation: portrait) {
+  .daily-days {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .daily-card {
+    min-height: 44px;
+  }
+}
+
+body.touch .daily-card {
+  min-height: 40px;
+}
