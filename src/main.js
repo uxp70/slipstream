@@ -16,6 +16,7 @@ import { TouchControls } from './touch.js';
 import { Squad } from './squad.js';
 import { EventDirector } from './events.js';
 import { Arsenal } from './inventory.js';
+import { Armory } from './buffs.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -108,6 +109,8 @@ class Game {
     // inventory: which gun sits in which slot, and which slot a run starts on
     this.arsenal = new Arsenal(this);
     this.arsenal.apply();
+    // coins + the pre-match buff shop: armed buffs are spent by the next run
+    this.armory = new Armory(this);
 
     this.weapons.onShoot = () => {
       this.shots++;
@@ -487,6 +490,7 @@ class Game {
     this.hits = 0;
     this.headshots = 0;
     this.topSpeed = 0;
+    this.runCoins = 0;
     this.wave = 0;
     this.waveDelay = 0;
     this.waveCleared = false;
@@ -498,6 +502,10 @@ class Game {
     this.enemies.clear();
     this.effects.reset();
     this.world.resetPads();
+    // armed buffs are spent here, so their effects last exactly this run
+    this.armory.beginRun();
+    this.player.maxHealth = 100 + this.armory.bonusHealth();
+    this.player.dashCooldownMult = this.armory.dashMult();
     this.player.reset(this.world.spawnAt.clone());
     this.weapons.reset();
     this.weapons.setVisible(true);
@@ -569,6 +577,7 @@ class Game {
     }
     this.hud.showGameOver({
       score: this.score,
+      coins: this.runCoins,
       wave: this.wave,
       kills: this.kills,
       accuracy,
@@ -582,15 +591,26 @@ class Game {
     return Math.min(5, 1 + Math.floor(this.combo / 4) * 0.5);
   }
 
+  // coins are banked as they are earned, so a run that ends badly still pays
+  gainCoins(amount) {
+    const n = Math.max(0, Math.round(Number(amount) || 0));
+    if (n > 0) this.armory.earn(n);
+    this.runCoins = (this.runCoins || 0) + n;
+    return n;
+  }
+
   handleHit({ enemy, point, headshot, damage }) {
+    // damage buffs multiply before the hit is reported, so a guest sends the
+    // boosted number and the host applies it unchanged
+    const dmg = damage * this.armory.damageMult();
     // guests report hits to the host, which owns enemy health and scoring
-    if (this.squad.reportHit({ enemy, point, headshot, damage })) return;
+    if (this.squad.reportHit({ enemy, point, headshot, damage: dmg })) return;
     this.hits++;
     if (headshot) this.headshots++;
-    const res = this.enemies.hit(enemy, damage, point, headshot);
+    const res = this.enemies.hit(enemy, dmg, point, headshot);
     this.audio.hit(headshot, this.combo);
     this.hud.hitmarker(res.killed ? 'kill' : headshot ? 'head' : 'hit');
-    this.hud.popAtWorld(point, this.camera, String(Math.round(damage)), headshot ? 'head' : '');
+    this.hud.popAtWorld(point, this.camera, String(Math.round(dmg)), headshot ? 'head' : '');
 
     if (res.killed) {
       this.kills++;
@@ -603,6 +623,8 @@ class Game {
       this.hud.popAtWorld(point, this.camera, `+${gained}`, 'kill', 40);
       if (headshot) this.hud.popCenter('HEADSHOT +50', 'bonus', -54);
       if (airborne) this.hud.popCenter('AIRBORNE +40', 'bonus', -96);
+      const coins = this.gainCoins(this.armory.killCoins(res.score));
+      if (coins > 0) this.hud.popAtWorld(point, this.camera, `+${coins} COINS`, 'bonus', 64);
       this.hitstop = 0.04;
       this.player.addShake(0.18);
       this.hud.setScore(this.score);
@@ -676,7 +698,7 @@ class Game {
     this.hud.setHealth(this.player.health, this.player.maxHealth);
     this.hud.setAmmo(this.weapons.ammo, this.weapons.magSize, this.weapons.reloading, def);
     this.hud.setWeapons(this.weapons.allAmmo(), this.weapons.index, this.weapons.reloading);
-    this.hud.setDash(1 - this.player.dashCooldown / 1.65);
+    this.hud.setDash(1 - this.player.dashCooldown / this.player.dashCycle());
     this.hud.setSpeed(this.player.horizSpeed());
     this.hud.setWave(this.wave, this.enemies.remaining());
     this.hud.crosshairSpread(this.weapons.spreadPixels());
@@ -698,9 +720,10 @@ class Game {
       this.waveDelay = 2.6;
       const bonus = 200 + this.wave * 75;
       const heal = this.enemies.mods.waveHeal;
+      const waveCoins = this.gainCoins(20 + this.wave * 8);
       this.score += bonus;
       this.hud.setScore(this.score);
-      this.hud.banner('WAVE CLEAR', `+${bonus} BONUS · +${heal} INTEGRITY`);
+      this.hud.banner('WAVE CLEAR', `+${bonus} BONUS · +${waveCoins} COINS · +${heal} INTEGRITY`);
       this.audio.waveClear();
       this.player.heal(heal);
     }
