@@ -189,6 +189,13 @@
           <button type="button" class="qbtn" id="btn-arsenal">ARSENAL</button>
           <span id="arsenal-summary">1 RIFLE · 2 BREACH · 3 LANCE · 4 HAVOC</span>
         </div>
+
+        <div class="graphics-row buffs-row">
+          <span class="picker-label">BUFFS</span>
+          <button type="button" class="qbtn" id="btn-armory">ARMORY</button>
+          <span class="coin-chip"><b id="coin-num">0</b> COINS</span>
+          <span id="armory-summary">NO BUFFS ARMED. EVERY RUN PAYS COINS.</span>
+        </div>
         <button id="btn-start" class="cta">CLICK TO JACK IN</button>
         <div class="controls controls-desktop">
           <div><kbd>W A S D</kbd><span>MOVE</span></div>
@@ -247,6 +254,7 @@
           <div><span id="over-kills">0</span><em>KILLS</em></div>
           <div><span id="over-acc">0%</span><em>ACCURACY</em></div>
           <div><span id="over-speed">0</span><em>TOP M/S</em></div>
+          <div><span id="over-coins">0</span><em>COINS</em></div>
         </div>
         <button id="btn-restart" class="cta">RUN IT BACK</button>
         <div class="keys restart-hint">Press <b>R</b> to restart</div>
@@ -265,6 +273,20 @@
         </div>
         <div class="map-blurb" id="arsenal-blurb"></div>
         <button id="btn-arsenal-back" class="cta small">BACK</button>
+      </div>
+    </div>
+
+    <div id="screen-armory" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">ARMORY · PRE-MATCH</div>
+        <h2>BUFFS</h2>
+        <div class="coin-line">COINS <b id="armory-coins">0</b></div>
+        <div class="armory-buffs" id="armory-buffs"></div>
+        <div class="map-blurb" id="armory-status"></div>
+        <div class="graphics-row">
+          <button type="button" class="qbtn" id="btn-armory-clear">DISARM ALL</button>
+          <button type="button" class="qbtn" id="btn-armory-back">BACK</button>
+        </div>
       </div>
     </div>
 
