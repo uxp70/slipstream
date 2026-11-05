@@ -1,1 +1,375 @@
-PLACEHOLDER
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#04060d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>SLIPSTREAM — Neon Arena Shooter</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/boss.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- ================= HUD ================= -->
+    <div id="hud">
+      <div id="crosshair">
+        <div class="ch t"></div>
+        <div class="ch b"></div>
+        <div class="ch l"></div>
+        <div class="ch r"></div>
+        <div class="ch-dot"></div>
+      </div>
+      <div id="hitmarker">
+        <i></i><i></i><i></i><i></i>
+      </div>
+      <div id="pops"></div>
+      <div id="edge-glow"></div>
+      <div id="damage-vignette"></div>
+      <div id="flash"></div>
+
+      <div class="hud-corner tl">
+        <div class="stat-block">
+          <div class="label">SCORE</div>
+          <div class="value" id="score-num">0</div>
+        </div>
+        <div class="stat-sub">BEST <span id="best-num">0</span></div>
+        <div class="perf-line"><span id="fps">60</span> FPS · <span id="quality-label">AUTO</span></div>
+        <div id="squad-roster"></div>
+      </div>
+
+      <div class="hud-corner tc">
+        <div class="wave-label" id="map-name">CIRCUIT</div>
+        <div class="wave-label">WAVE</div>
+        <div class="wave-value" id="wave-num">1</div>
+        <div class="wave-left"><span id="wave-left">0</span> HOSTILES</div>
+      </div>
+
+      <div class="hud-corner tr">
+        <div class="combo" id="combo">
+          <div class="combo-mult" id="combo-mult">x1.0</div>
+          <div class="combo-label">CHAIN <b id="combo-num">0</b></div>
+          <div class="combo-track"><div class="combo-fill" id="combo-fill"></div></div>
+        </div>
+      </div>
+
+      <div id="boss-bar" class="boss-bar">
+        <div class="boss-head">
+          <span class="boss-tag">BOSS</span>
+          <span id="boss-name">WARDEN</span>
+          <span id="boss-pct">100%</span>
+        </div>
+        <div class="boss-track"><div class="boss-fill" id="boss-fill"></div></div>
+      </div>
+
+      <div class="hud-bottom-left">
+        <div class="vitals">
+          <div class="vitals-head">
+            <span class="label">INTEGRITY</span>
+            <span class="num"><b id="hp-num">100</b></span>
+          </div>
+          <div class="bar"><div class="bar-fill hp" id="hp-fill"></div></div>
+        </div>
+        <div class="speedo">
+          <div class="speedo-val"><b id="speed-num">0</b><span>M/S</span></div>
+          <div class="bar slim"><div class="bar-fill spd" id="speed-fill"></div></div>
+        </div>
+      </div>
+
+      <div class="hud-bottom-center">
+        <div class="dash-wrap">
+          <div class="dash-ring" id="dash-ring"></div>
+          <div class="dash-label">DASH</div>
+          <div class="dash-key">SHIFT</div>
+        </div>
+      </div>
+
+      <div class="hud-bottom-right">
+        <div id="weapon-strip">
+          <button type="button" class="wslot active" data-slot="0" aria-label="Rifle">
+            <b>1</b><span class="wname">RIFLE</span><span class="wcount"><span class="wammo">30</span>/<span class="wmag">30</span></span>
+          </button>
+          <button type="button" class="wslot" data-slot="1" aria-label="Shotgun">
+            <b>2</b><span class="wname">BREACH</span><span class="wcount"><span class="wammo">6</span>/<span class="wmag">6</span></span>
+          </button>
+          <button type="button" class="wslot" data-slot="2" aria-label="Railgun">
+            <b>3</b><span class="wname">LANCE</span><span class="wcount"><span class="wammo">5</span>/<span class="wmag">5</span></span>
+          </button>
+          <button type="button" class="wslot" data-slot="3" aria-label="Launcher">
+            <b>4</b><span class="wname">HAVOC</span><span class="wcount"><span class="wammo">4</span>/<span class="wmag">4</span></span>
+          </button>
+        </div>
+        <div class="ammo">
+          <div class="ammo-row">
+            <span id="ammo-cur">30</span><span class="ammo-sep">/</span><span id="ammo-mag">30</span>
+          </div>
+          <div class="ammo-pips" id="ammo-pips"></div>
+          <div class="ammo-tag" id="reload-tag">VX-9 ARC RIFLE</div>
+        </div>
+      </div>
+
+      <div id="hint">
+        <span><b>SPACE</b> JUMP · HOLD TO BHOP</span>
+        <span><b>A / D</b> + TURN TO AIR-STRAFE</span>
+        <span><b>SHIFT</b> DASH</span>
+      </div>
+
+      <div id="lock-notice">MOUSE CAPTURE BLOCKED · MOVE MOUSE TO AIM · OPEN THIS PAGE IN A NEW TAB FOR FULL CONTROL</div>
+
+      <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+    </div>
+
+    <!-- ================= TOUCH CONTROLS ================= -->
+    <div id="touch-ui" class="hidden">
+      <div id="look-zone"></div>
+      <div id="stick-zone">
+        <div id="stick-base"><div id="stick-knob"></div></div>
+      </div>
+      <div id="touch-buttons">
+        <button type="button" id="tb-pause" class="tbtn mini" aria-label="Pause">II</button>
+        <button type="button" id="tb-reload" class="tbtn small" aria-label="Reload">R</button>
+        <button type="button" id="tb-aim" class="tbtn small" aria-label="Focus aim">AIM</button>
+        <button type="button" id="tb-dash" class="tbtn medium" aria-label="Dash">DASH</button>
+        <button type="button" id="tb-jump" class="tbtn medium" aria-label="Jump">JUMP</button>
+        <button type="button" id="tb-fire" class="tbtn fire" aria-label="Fire">FIRE</button>
+      </div>
+      <div id="rotate-hint">ROTATE FOR THE FULL ARENA</div>
+    </div>
+
+    <!-- ================= SCREENS ================= -->
+    <div id="screen-start" class="screen">
+      <div class="start-inner">
+        <div class="eyebrow">NEON ARENA · MOVEMENT SHOOTER</div>
+        <h1 class="title">SLIP<span>STREAM</span></h1>
+        <p class="tagline">Keep your speed. Chain your jumps. Vaporize the swarm.</p>
+        <p class="tagline touch-only">Stick to move · drag to aim · hold FIRE. Best in landscape.</p>
+
+        <div class="group-head">
+          <span class="group-title">MATCH</span>
+          <span class="group-meta" id="match-summary">NEON SIEGE · CIRCUIT · STANDARD</span>
+        </div>
+
+        <div class="event-picker">
+          <div class="picker-label">SELECT EVENT</div>
+          <div class="event-cards" id="event-cards"></div>
+          <div class="map-blurb" id="event-blurb">NEON SIEGE — the three original arenas under the default chrome kit.</div>
+        </div>
+
+        <div class="map-picker">
+          <div class="picker-label">SELECT ARENA</div>
+          <div class="map-cards" id="map-cards"></div>
+          <div class="map-blurb" id="map-blurb">SINGLE ATRIUM — Ring loop, raised core, even cover.</div>
+        </div>
+
+        <div class="graphics-row diff-row">
+          <span class="picker-label">DIFFICULTY</span>
+          <button type="button" class="qbtn" data-diff="rookie">ROOKIE</button>
+          <button type="button" class="qbtn sel" data-diff="standard">STANDARD</button>
+          <button type="button" class="qbtn" data-diff="overclock">OVERCLOCK</button>
+        </div>
+        <div class="map-blurb" id="diff-blurb">STANDARD — the tuned fight the arenas were balanced around.</div>
+
+        <div class="group-head">
+          <span class="group-title">HANGAR</span>
+          <span class="group-meta">SQUAD · OPERATOR · KIT</span>
+        </div>
+
+        <div class="squad-panel" id="squad-panel">
+          <div class="picker-label">SQUAD · ONLINE CO-OP</div>
+          <div class="squad-row">
+            <input id="sq-name" class="sq-input" type="text" maxlength="10" placeholder="CALLSIGN" autocomplete="off" spellcheck="false" />
+            <button type="button" class="qbtn" id="sq-host">CREATE SQUAD</button>
+          </div>
+          <div class="squad-row hidden" id="sq-code-row">
+            <span class="sq-code-label">CODE</span>
+            <b id="sq-code">-----</b>
+            <button type="button" class="qbtn" id="sq-copy">COPY LINK</button>
+          </div>
+          <div class="squad-row">
+            <input id="sq-code-input" class="sq-input code" type="text" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false" />
+            <button type="button" class="qbtn" id="sq-join">JOIN SQUAD</button>
+            <button type="button" class="qbtn hidden" id="sq-enter">ENTER ARENA</button>
+            <button type="button" class="qbtn hidden" id="sq-leave">LEAVE</button>
+          </div>
+          <div class="sq-status" id="sq-status">SOLO · CREATE A SQUAD OR JOIN WITH A CODE</div>
+        </div>
+
+        <div class="graphics-row">
+          <span class="picker-label">GRAPHICS</span>
+          <button type="button" class="qbtn sel" data-quality="auto">AUTO</button>
+          <button type="button" class="qbtn" data-quality="high">HIGH</button>
+          <button type="button" class="qbtn" data-quality="performance">FRAMES</button>
+        </div>
+
+        <div class="graphics-row account-row">
+          <span class="picker-label">OPERATOR</span>
+          <span class="account-chip"><b id="account-label">GUEST</b></span>
+          <button type="button" class="qbtn" id="btn-account">SIGN IN</button>
+        </div>
+
+        <div class="graphics-row">
+          <span class="picker-label">LOADOUT</span>
+          <button type="button" class="qbtn" id="btn-arsenal">ARSENAL</button>
+          <span id="arsenal-summary">1 RIFLE · 2 BREACH · 3 LANCE · 4 HAVOC</span>
+        </div>
+
+        <div class="graphics-row buffs-row">
+          <span class="picker-label">BUFFS</span>
+          <button type="button" class="qbtn" id="btn-armory">ARMORY</button>
+          <span class="coin-chip"><b id="coin-num">0</b> COINS</span>
+          <span id="armory-summary">NO BUFFS ARMED. EVERY RUN PAYS COINS.</span>
+        </div>
+
+        <div class="graphics-row daily-row">
+          <span class="picker-label">DAILY</span>
+          <button type="button" class="qbtn" id="btn-daily">DAILY REWARD</button>
+          <span class="daily-chip"><b id="daily-label">DAY 1 READY</b></span>
+          <span id="daily-summary">STREAK ×0 · 40 COINS WAITING</span>
+        </div>
+
+        <div class="controls controls-desktop">
+          <div><kbd>W A S D</kbd><span>MOVE</span></div>
+          <div><kbd>SPACE</kbd><span>JUMP / HOLD = BHOP</span></div>
+          <div><kbd>SHIFT</kbd><span>DASH</span></div>
+          <div><kbd>CTRL</kbd><span>SLIDE</span></div>
+          <div><kbd>LMB</kbd><span>FIRE</span></div>
+          <div><kbd>RMB</kbd><span>FOCUS AIM</span></div>
+          <div><kbd>R</kbd><span>RELOAD</span></div>
+          <div><kbd>ESC</kbd><span>PAUSE</span></div>
+        </div>
+        <div class="controls controls-touch">
+          <div><kbd>STICK</kbd><span>MOVE</span></div>
+          <div><kbd>DRAG</kbd><span>LOOK / AIM</span></div>
+          <div><kbd>FIRE</kbd><span>HOLD TO SHOOT</span></div>
+          <div><kbd>JUMP</kbd><span>HOLD TO BHOP</span></div>
+          <div><kbd>DASH</kbd><span>BURST OF SPEED</span></div>
+          <div><kbd>AIM</kbd><span>FOCUS FIRE</span></div>
+          <div><kbd>R</kbd><span>RELOAD</span></div>
+          <div><kbd>II</kbd><span>PAUSE</span></div>
+        </div>
+        <div class="hintline">Hold <b>A</b> or <b>D</b> while turning in the air to gain speed. Weapons <b>1</b>–<b>4</b>, cycle with <b>Q</b> or the wheel.</div>
+
+        <!-- the primary action rides the bottom of the viewport, so it is one
+             click away no matter how far the configuration has scrolled -->
+        <div class="start-actions">
+          <div class="start-context">
+            <span id="start-context">CIRCUIT · STANDARD · SOLO</span>
+            <span class="start-best">BEST <b id="start-best">0</b></span>
+          </div>
+          <button id="btn-start" class="cta">JACK IN</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-pause" class="screen hidden">
+      <div class="panel">
+        <div class="eyebrow">SYSTEM HALT</div>
+        <h2>PAUSED</h2>
+        <button id="btn-resume" class="cta small">RESUME</button>
+        <button id="btn-leave-squad" class="qbtn hidden">LEAVE SQUAD</button>
+        <div class="settings">
+          <label>
+            <span>MOUSE SENSITIVITY</span>
+            <input id="sens" type="range" min="5" max="60" value="22" />
+            <b id="sens-val">0.22</b>
+          </label>
+          <label>
+            <span>VOLUME</span>
+            <input id="vol" type="range" min="0" max="100" value="70" />
+            <b id="vol-val">70</b>
+          </label>
+        </div>
+        <div class="keys">WASD move · SPACE bhop · CTRL slide · SHIFT dash · 1-4 / Q weapons · LMB fire · RMB focus · R reload</div>
+      </div>
+    </div>
+
+    <div id="screen-over" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">SIGNAL LOST</div>
+        <h2 class="over-title">RUN TERMINATED</h2>
+        <div class="stats">
+          <div><span id="over-score">0</span><em>SCORE</em></div>
+          <div><span id="over-wave">1</span><em>WAVE</em></div>
+          <div><span id="over-kills">0</span><em>KILLS</em></div>
+          <div><span id="over-acc">0%</span><em>ACCURACY</em></div>
+          <div><span id="over-speed">0</span><em>TOP M/S</em></div>
+          <div><span id="over-coins">0</span><em>COINS</em></div>
+        </div>
+        <button id="btn-restart" class="cta">MAIN MENU</button>
+        <div class="keys restart-hint">Press <b>R</b> for the main menu</div>
+      </div>
+    </div>
+
+    <div id="screen-arsenal" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">ARSENAL · INVENTORY</div>
+        <h2>LOADOUT</h2>
+        <div class="arsenal-slots" id="arsenal-slots"></div>
+        <div class="arsenal-guns" id="arsenal-guns"></div>
+        <div class="graphics-row">
+          <span class="picker-label">START WITH</span>
+          <span class="arsenal-start" id="arsenal-start"></span>
+        </div>
+        <div class="map-blurb" id="arsenal-blurb"></div>
+        <button id="btn-arsenal-back" class="cta small">BACK</button>
+      </div>
+    </div>
+
+    <div id="screen-armory" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">ARMORY · PRE-MATCH</div>
+        <h2>BUFFS</h2>
+        <div class="coin-line">COINS <b id="armory-coins">0</b></div>
+        <div class="armory-buffs" id="armory-buffs"></div>
+        <div class="map-blurb" id="armory-status"></div>
+        <div class="graphics-row">
+          <button type="button" class="qbtn" id="btn-armory-clear">DISARM ALL</button>
+          <button type="button" class="qbtn" id="btn-armory-back">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-daily" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">DAILY · SUPPLY DROP</div>
+        <h2 id="daily-title">DAY 1 OF 7</h2>
+        <div class="coin-line">COINS <b id="daily-coins">0</b></div>
+        <div class="daily-days" id="daily-days"></div>
+        <div class="map-blurb" id="daily-status"></div>
+        <button id="btn-daily-claim" class="cta small">CLAIM 40 COINS</button>
+        <div class="graphics-row">
+          <button type="button" class="qbtn" id="btn-daily-back">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-login" class="screen hidden">
+      <div class="panel">
+        <div class="eyebrow">OPERATOR · ACCOUNT</div>
+        <h2 id="login-title">SIGN IN</h2>
+        <div class="login-form">
+          <label class="login-field">
+            <span>CALLSIGN</span>
+            <input id="login-name" type="text" maxlength="10" autocomplete="username" spellcheck="false" />
+          </label>
+          <label class="login-field">
+            <span>PASSCODE</span>
+            <input id="login-pass" type="password" maxlength="64" autocomplete="current-password" />
+          </label>
+        </div>
+        <div class="map-blurb" id="login-status"></div>
+        <button id="btn-login-submit" class="cta small">SIGN IN</button>
+        <div class="graphics-row">
+          <button type="button" class="qbtn" id="btn-login-mode">CREATE ACCOUNT</button>
+          <button type="button" class="qbtn hidden" id="btn-login-out">SIGN OUT</button>
+          <button type="button" class="qbtn" id="btn-login-back">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
