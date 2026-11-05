@@ -17,6 +17,7 @@ import { Squad } from './squad.js';
 import { EventDirector } from './events.js';
 import { Arsenal } from './inventory.js';
 import { Armory } from './buffs.js';
+import { Accounts } from './account.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -106,11 +107,17 @@ class Game {
     // the event owns the arena list, the enemy skins and the gun skins
     this.eventId = 'neon';
     this.events = new EventDirector(this);
+    // accounts own the wallet, the loadout and the squad callsign, so they are
+    // built before anything that resolves a storage key through them
+    this.accounts = new Accounts(this);
+    this.account = this.accounts;
     // inventory: which gun sits in which slot, and which slot a run starts on
     this.arsenal = new Arsenal(this);
     this.arsenal.apply();
     // coins + the pre-match buff shop: armed buffs are spent by the next run
     this.armory = new Armory(this);
+    // a live session brings back the operator, its wallet and its loadout
+    this.accounts.restore();
 
     this.weapons.onShoot = () => {
       this.shots++;
