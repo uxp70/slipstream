@@ -607,7 +607,7 @@ const slotBox = await tpage.evaluate(() => {
 });
 check(slotBox.w >= 100 && slotBox.h >= 26, 'touch weapon slots are thumb sized', `${Math.round(slotBox.w)}x${Math.round(slotBox.h)}`);
 await tpage.touchscreen.tap(slotBox.x, slotBox.y);
-await tpage.waitForTimeout(200);
+await new Promise((resolve) => setTimeout(resolve, 200));
 check((await tpage.evaluate(() => window.__game.weapons.index)) === 2, 'tapping the strip swaps to the railgun on touch');
 
 const touchCalls = await tpage.evaluate(() => window.__game.drawCalls);
