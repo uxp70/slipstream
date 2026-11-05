@@ -215,6 +215,75 @@ check(
   `${arsenal.restored}/${JSON.stringify(arsenal.restoredOrder)}`
 );
 
+// ----------------------------------------------------------------- armory
+const armory = await page.evaluate(() => {
+  const g = window.__game;
+  const out = {};
+  g.armory.coins = 5000;
+  g.armory.armed = { rounds: 0, plating: 0, thrusters: 0, salvage: 0 };
+  g.armory.save();
+  g.armory.paint();
+
+  document.getElementById('btn-armory').click();
+  out.visible = !document.getElementById('screen-armory').classList.contains('hidden');
+  out.cards = document.querySelectorAll('[data-buff]').length;
+
+  const before = g.armory.coins;
+  document.querySelector('[data-buff="rounds"]').click();
+  out.spent = before - g.armory.coins;
+  out.armedRounds = g.armory.armed.rounds;
+  // the second stack costs more than the first
+  out.secondPrice = g.armory.price({ id: 'rounds', cost: 180 });
+  document.querySelector('[data-buff="rounds"]').click();
+  out.armedRounds2 = g.armory.armed.rounds;
+  document.querySelector('[data-buff="plating"]').click();
+  out.summary = document.getElementById('armory-summary').textContent;
+  out.balanceAfter = document.getElementById('armory-coins').textContent;
+  out.coinChip = document.getElementById('coin-num').textContent;
+
+  // a purchase is refused when the wallet cannot cover it
+  g.armory.coins = 10;
+  g.armory.paint();
+  document.querySelector('[data-buff="thrusters"]').click();
+  out.brokeArmed = g.armory.armed.thrusters;
+  out.status = document.getElementById('armory-status').textContent;
+  g.armory.coins = 5000;
+  g.armory.paint();
+
+  document.getElementById('btn-armory-back').click();
+  out.closed = document.getElementById('screen-armory').classList.contains('hidden');
+  out.coinLine = document.getElementById('coin-num').textContent;
+  return out;
+});
+console.log('armory:', JSON.stringify(armory));
+check(armory.visible && armory.closed, 'armory opens and closes from the start screen');
+check(armory.cards === 4, 'armory lists every buff', `cards=${armory.cards}`);
+check(
+  armory.spent > 0 && armory.armedRounds === 1,
+  'buying a buff spends coins',
+  `-${armory.spent}`
+);
+check(
+  armory.secondPrice > 180 && armory.armedRounds2 === 2,
+  'stacking a buff costs more and stacks up',
+  `price=${armory.secondPrice} rounds=${armory.armedRounds2}`
+);
+check(
+  /ROUNDS ×2/.test(armory.summary) && armory.summary.includes('PLATING'),
+  'the start screen summary tracks the armed buffs',
+  armory.summary
+);
+check(
+  armory.balanceAfter === armory.coinChip && armory.balanceAfter !== '5,000',
+  'the wallet repaints as coins are spent',
+  `${armory.balanceAfter}/${armory.coinChip}`
+);
+check(
+  armory.brokeArmed === 0 && /MORE COINS/.test(armory.status),
+  'a purchase is refused without the coins',
+  armory.status
+);
+
 // -------------------------------------------------------------- difficulty
 const diffCount = await page.locator('[data-diff]').count();
 check(diffCount === 3, 'start screen offers 3 difficulties', `buttons=${diffCount}`);
@@ -286,6 +355,20 @@ await page.click('#btn-start');
 await page.evaluate(() => document.dispatchEvent(new Event('pointerlockerror')));
 await page.waitForTimeout(900);
 check((await page.evaluate(() => window.__game.state)) === 'playing', 'run starts');
+
+// the buffs armed before the match are live in this run, and spent
+const buffRun = await page.evaluate(() => ({
+  damage: window.__game.armory.damageMult(),
+  health: window.__game.player.maxHealth,
+  dash: window.__game.player.dashCycle(),
+  spent: window.__game.armory.armed.rounds + window.__game.armory.armed.plating,
+  coins: window.__game.armory.coins,
+}));
+console.log('buffs in run:', JSON.stringify(buffRun));
+check(Math.abs(buffRun.damage - 1.24) < 1e-6, 'bought damage stacks apply to the run', `x${buffRun.damage}`);
+check(buffRun.health === 120, 'bought integrity applies to the run', `${buffRun.health}`);
+check(Math.abs(buffRun.dash - 1.65) < 1e-6, 'dash cycle is stock without thruster buffs', `${buffRun.dash}`);
+check(buffRun.spent === 0, 'armed buffs are spent by the run', `armed=${buffRun.spent}`);
 
 const slotCount = await page.locator('#weapon-strip .wslot').count();
 check(slotCount === 4, 'HUD shows all four weapon slots', `slots=${slotCount}`);
