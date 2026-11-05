@@ -281,7 +281,7 @@ check(account.visible && account.closed, 'account screen opens and closes');
 check(account.signedIn === 'NOVA' && account.label === 'NOVA', 'creating an account signs you in', `${account.signedIn}/${account.label}`);
 check(account.squadName === 'NOVA', 'the account callsign becomes the squad identity', account.squadName);
 check(account.session, 'the session is remembered');
-check(account.hashLooksHashed && !account.plainStored, 'the passcode is stored as a hash');
+两check(account.hashLooksHashed && !account.plainStored, 'the passcode is stored as a hash');
 check(account.accountCoins === 750 && account.guestCoins !== 750, 'coins belong to the account', `account=${account.accountCoins} guest=${account.guestCoins}`);
 check(account.badSignIn === null && /WRONG PASSCODE/.test(account.badStatus), 'a wrong passcode is refused', account.badStatus);
 check(account.backName === 'NOVA' && account.backCoins === 750, 'signing back in restores the wallet', `${account.backName}/${account.backCoins}`);
@@ -607,7 +607,7 @@ const slotBox = await tpage.evaluate(() => {
 });
 check(slotBox.w >= 100 && slotBox.h >= 26, 'touch weapon slots are thumb sized', `${Math.round(slotBox.w)}x${Math.round(slotBox.h)}`);
 await tpage.touchscreen.tap(slotBox.x, slotBox.y);
-await page.waitForTimeout(200);
+await tpage.waitForTimeout(200);
 check((await tpage.evaluate(() => window.__game.weapons.index)) === 2, 'tapping the strip swaps to the railgun on touch');
 
 const touchCalls = await tpage.evaluate(() => window.__game.drawCalls);
