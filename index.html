@@ -183,6 +183,12 @@
           <button type="button" class="qbtn" data-quality="high">HIGH</button>
           <button type="button" class="qbtn" data-quality="performance">FRAMES</button>
         </div>
+
+        <div class="graphics-row">
+          <span class="picker-label">LOADOUT</span>
+          <button type="button" class="qbtn" id="btn-arsenal">ARSENAL</button>
+          <span id="arsenal-summary">1 RIFLE · 2 BREACH · 3 LANCE · 4 HAVOC</span>
+        </div>
         <button id="btn-start" class="cta">CLICK TO JACK IN</button>
         <div class="controls controls-desktop">
           <div><kbd>W A S D</kbd><span>MOVE</span></div>
@@ -244,6 +250,21 @@
         </div>
         <button id="btn-restart" class="cta">RUN IT BACK</button>
         <div class="keys restart-hint">Press <b>R</b> to restart</div>
+      </div>
+    </div>
+
+    <div id="screen-arsenal" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">ARSENAL · INVENTORY</div>
+        <h2>LOADOUT</h2>
+        <div class="arsenal-slots" id="arsenal-slots"></div>
+        <div class="arsenal-guns" id="arsenal-guns"></div>
+        <div class="graphics-row">
+          <span class="picker-label">START WITH</span>
+          <span class="arsenal-start" id="arsenal-start"></span>
+        </div>
+        <div class="map-blurb" id="arsenal-blurb"></div>
+        <button id="btn-arsenal-back" class="cta small">BACK</button>
       </div>
     </div>
 
