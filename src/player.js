@@ -65,6 +65,8 @@ export class Player {
     this.dead = false;
     this.timeSinceDamage = 99;
 
+    // buffs shrink the dash cycle; 1 is the stock hunter
+    this.dashCooldownMult = 1;
     this.dashCooldown = 0;
     this.dashTimer = 0;
     this.dashDir = new THREE.Vector3();
@@ -93,6 +95,11 @@ export class Player {
     this.hitWall = false;
     this.sensitivity = 0.0022;
     this.speedBoost = 0;
+  }
+
+  // the dash cycle this run, after any cool-down buffs
+  dashCycle() {
+    return CFG.dashCooldown * this.dashCooldownMult;
   }
 
   reset(spawn) {
@@ -416,7 +423,7 @@ export class Player {
     // dash in wish direction, or straight forward when no key is held
     if (wish.lengthSq() > 0) this.dashDir.copy(wish);
     else this.dashDir.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-    this.dashCooldown = CFG.dashCooldown;
+    this.dashCooldown = this.dashCycle();
     this.dashTimer = CFG.dashTime;
     this.vel.x = this.dashDir.x * CFG.dashSpeed;
     this.vel.z = this.dashDir.z * CFG.dashSpeed;
