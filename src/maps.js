@@ -1,10 +1,12 @@
 // Arena definitions. Each map is built from the same vocabulary of boxes but
-// arranged on a different archetype, so the three arenas ask for different
-// movement and different fights:
+// arranged on a different archetype, so the arenas ask for different movement
+// and different fights:
 //
 //   CIRCUIT — single atrium ring, balanced cover, one raised core. Reads first.
 //   SPIRE   — vertical jungle gym, stacked offset tiers around a tower.
 //   RIFT    — open canyon, sparse cover, long sightlines over three lanes.
+//   DUSTFALL— frontier main street between two rows of storefronts (WILD WEST).
+//   GLACIER — frozen basin, staggered shelves and two high bridges (CRYO).
 //
 // Builders receive the World instance and use its solid()/wallRing()/horizonStrips()
 // helpers; they only describe geometry, so the heavy merging stays in world.js.
@@ -27,6 +29,18 @@ export const MAPS = [
     name: 'RIFT',
     tag: 'CANYON',
     blurb: 'Long lanes and thin cover. Distance is the weapon.',
+  },
+  {
+    id: 'dustfall',
+    name: 'DUSTFALL',
+    tag: 'FRONTIER STREET',
+    blurb: 'A dusty main street with false-front stores. Hold the boardwalk.',
+  },
+  {
+    id: 'glacier',
+    name: 'GLACIER',
+    tag: 'FROZEN BASIN',
+    blurb: 'Broken ice shelves over a frozen well, crossed by two high bridges.',
   },
 ];
 
@@ -184,8 +198,124 @@ export function buildRift(w) {
   w.floorTint = 0xfff0e0;
 }
 
+// --- frontier town: one wide main street, storefronts either side, water tower
+export function buildDustfall(w) {
+  const plank = { color: 0x140f0a, edge: 0xffa63c, edgeOpacity: 0.32 };
+  const roof = { ...plank, edge: 0xffd166, edgeOpacity: 0.26, cap: 0x8a5a1e, capOpacity: 0.3 };
+  w.bounds = 44;
+  w.wallRing(47, 15, { color: 0x0d0906, edge: 0xd9822b, edgeOpacity: 0.3 });
+  w.horizonStrips(47, 12.5);
+
+  // two rows of storefronts with a boardwalk in front of each
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const z = -22 + i * 22;
+      const h = 6.4 + i * 1.1;
+      w.solid(side * 24, 0, z, 12, h, 14, i === 1 ? roof : plank);
+      w.solid(side * 17.4, 0, z, 2.4, 0.55, 14, { ...plank, capOpacity: 0.16 });
+      w.solid(side * 16.4, 0, z - 6, 0.5, 4.6, 0.5, { ...plank, edge: 0xffd166, edgeOpacity: 0.4 });
+      w.solid(side * 16.4, 0, z + 6, 0.5, 4.6, 0.5, { ...plank, edge: 0xffd166, edgeOpacity: 0.4 });
+    }
+  }
+
+  // saloon across the top of the street, on a raised porch
+  w.solid(0, 0, -34, 30, 8.2, 8, { ...roof, cap: 0xa8702a, capOpacity: 0.34 });
+  w.solid(0, 0, -28.4, 26, 0.6, 3.4, { ...plank, capOpacity: 0.2 });
+
+  // water tower: four legs under a tank, the town's landmark
+  for (const [x, z] of [[-32, 30], [-28, 30], [-32, 34], [-28, 34]]) {
+    w.solid(x, 0, z, 0.7, 7.6, 0.7, { ...plank, edge: 0xffc063, edgeOpacity: 0.34 });
+  }
+  w.solid(-30, 7.6, 32, 6.4, 3.6, 6.4, { ...roof, cap: 0x9a6a2a, capOpacity: 0.4 });
+
+  // wagons, crates and a low boardwalk break the street without closing it
+  for (const [x, z, ww, dd, h] of [
+    [-6, -12, 4.4, 2, 1.8],
+    [7, 10, 3.2, 2, 1.4],
+    [-8, 16, 2.4, 2.4, 1.1],
+    [6, -20, 2.6, 2.6, 1.1],
+    [0, 4, 8, 0.6, 0.5],
+  ]) {
+    w.solid(x, 0, z, ww, h, dd, plank);
+  }
+
+  // hitching rails
+  for (const [x, z] of [[-14, -6], [14, 6], [-14, 22], [14, -22]]) {
+    w.solid(x, 0, z, 5, 1.3, 0.6, { ...plank, edge: 0xffd166, edgeOpacity: 0.3 });
+  }
+
+  // the town well: the only cover in the middle of the street
+  w.solid(0, 0, 0, 5, 1.2, 5, { ...roof, edge: 0xffd166, capOpacity: 0.24 });
+  w.solid(0, 1.2, 0, 0.6, 4, 0.6, plank);
+
+  w.padSpots = [[-34, -34], [34, 34], [-34, 34], [34, -34], [0, -40], [0, 40]];
+  w.spawnAt = new w.V3(0, 1.2, 26);
+  w.buildSpawns(38, 12);
+  w.fogColor = 0x0a0603;
+  w.floorTint = 0xffcf8a;
+}
+
+// --- cryo basin: broken ice shelves around a frozen well, two high bridges
+export function buildGlacier(w) {
+  const ice = { color: 0x0c1a24, edge: 0x9fe8ff, edgeOpacity: 0.34 };
+  const shelf = { ...ice, cap: 0x4fb6d8, capOpacity: 0.28 };
+  w.bounds = 45;
+  w.wallRing(48, 22, { color: 0x08131c, edge: 0x6fd8f5, edgeOpacity: 0.3 });
+  w.horizonStrips(48, 19);
+
+  // four shelves at staggered heights, each with a step up from the ice floor
+  for (const [x, z, h, ww, dd] of [
+    [-20, -18, 2.4, 16, 12],
+    [20, -16, 3.6, 14, 12],
+    [20, 20, 2.4, 16, 14],
+    [-22, 20, 1.4, 14, 12],
+  ]) {
+    w.solid(x, 0, z, ww, h, dd, h > 3 ? { ...shelf, edge: 0xd6f7ff, edgeOpacity: 0.4 } : shelf);
+    const stepX = x + (x > 0 ? -ww / 2 - 1.6 : ww / 2 + 1.6);
+    w.solid(stepX, 0, z, 3, Math.min(h, 1.4), 3, ice);
+  }
+
+  // frozen well in the middle, with the two bridges that cross the basin
+  w.solid(0, 0, 0, 12, 1.8, 12, { ...shelf, cap: 0x63f5ff, capOpacity: 0.3 });
+  w.solid(0, 1.8, 0, 3.4, 0.9, 3.4, ice);
+  w.solid(0, 4.6, -18, 4, 0.5, 16, { ...shelf, edge: 0xd6f7ff, edgeOpacity: 0.42 });
+  w.solid(0, 4.6, 18, 4, 0.5, 16, { ...shelf, edge: 0xd6f7ff, edgeOpacity: 0.42 });
+
+  // spires: thin, tall, pale-edged. They break sightlines without giving cover
+  for (const [x, z, h] of [
+    [-32, 0, 6],
+    [32, 0, 6],
+    [-10, -32, 7],
+    [10, 32, 7],
+    [-30, -30, 9],
+    [30, 30, 9],
+    [34, -8, 4],
+    [-34, 10, 4],
+  ]) {
+    w.solid(x, 0, z, 2.2, h, 2.2, {
+      ...ice,
+      edge: 0xd6f7ff,
+      edgeOpacity: 0.38,
+      cap: 0x63f5ff,
+      capOpacity: 0.3,
+    });
+  }
+
+  // low ice walls along the east and west lanes
+  w.solid(-38, 0, 0, 2, 2.6, 26, { ...ice, edge: 0x9fe8ff, edgeOpacity: 0.26 });
+  w.solid(38, 0, 0, 2, 2.6, 26, { ...ice, edge: 0x9fe8ff, edgeOpacity: 0.26 });
+
+  w.padSpots = [[-40, -40], [40, 40], [-40, 40], [40, -40], [0, 42], [0, -42]];
+  w.spawnAt = new w.V3(0, 1.2, 30);
+  w.buildSpawns(40, 14);
+  w.fogColor = 0x03080f;
+  w.floorTint = 0xcfefff;
+}
+
 export const MAP_BUILDERS = {
   circuit: buildCircuit,
   spire: buildSpire,
   rift: buildRift,
+  dustfall: buildDustfall,
+  glacier: buildGlacier,
 };

@@ -84,12 +84,63 @@
   margin-bottom: 9px;
 }
 
+/* auto-fit keeps three arena cards level but lets a one-arena event fill the row */
 .map-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   width: min(560px, 90vw);
   margin: 0 auto;
+}
+
+/* ===================== EVENTS ===================== */
+
+.event-picker {
+  margin-top: 22px;
+}
+
+.event-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  width: min(560px, 90vw);
+  margin: 0 auto;
+}
+
+.event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 8px;
+  background: rgba(10, 16, 26, 0.66);
+  border: 1px solid rgba(255, 176, 96, 0.18);
+  color: rgba(210, 200, 190, 0.62);
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.event-card b {
+  font-family: var(--font);
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  color: #fff3e2;
+}
+.event-card span {
+  font-size: 7.5px;
+  letter-spacing: 0.2em;
+  color: rgba(200, 180, 160, 0.5);
+}
+.event-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 176, 96, 0.45);
+}
+.event-card.sel {
+  background: rgba(84, 52, 20, 0.55);
+  border-color: #ffb347;
+  box-shadow: 0 0 24px rgba(255, 163, 60, 0.22);
+}
+.event-card.sel b {
+  color: #ffd166;
 }
 
 .map-card {
@@ -358,13 +409,21 @@ body.touch .wslot .wname {
   }
 }
 
+@media (max-height: 480px) {
+  .event-picker {
+    margin-top: 12px;
+  }
+}
+
 @media (orientation: portrait) {
-  .map-cards {
+  .map-cards,
+  .event-cards {
     grid-template-columns: 1fr;
     gap: 6px;
     width: min(260px, 80vw);
   }
-  .map-card {
+  .map-card,
+  .event-card {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
@@ -401,4 +460,9 @@ body.touch .squad-row .qbtn {
 body.touch .graphics-row .qbtn {
   min-height: 30px;
   padding: 6px 9px;
+}
+
+body.touch .event-card {
+  min-height: 40px;
+  justify-content: center;
 }
