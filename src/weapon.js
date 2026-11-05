@@ -119,6 +119,10 @@ export class WeaponSystem {
 
     this.defs = WEAPONS;
     this.index = 0;
+    // slot -> weapon index. The slot order is the player's loadout, and every
+    // key/button addresses a slot, so "1" is whatever was carried in slot 1.
+    this.order = WEAPONS.map((_, i) => i);
+    this.startSlot = 0;
     this.states = WEAPONS.map((def) => ({
       ammo: def.mag,
       cooldown: 0,
@@ -165,12 +169,17 @@ export class WeaponSystem {
   }
 
   // ------------------------------------------------------------------ getters
+  weaponIndex(i = this.index) {
+    const w = this.order[i];
+    return w === undefined ? i : w;
+  }
+
   get def() {
-    return this.defs[this.index];
+    return this.defs[this.weaponIndex()];
   }
 
   get state() {
-    return this.states[this.index];
+    return this.states[this.weaponIndex()];
   }
 
   get ammo() {
@@ -193,17 +202,21 @@ export class WeaponSystem {
     return this.def.id;
   }
 
+  // one row per slot, in loadout order, so the HUD strip reads 1..4 as carried
   allAmmo() {
-    return this.states.map((s, i) => ({
-      ammo: s.ammo,
-      mag: this.defs[i].mag,
-      id: this.defs[i].id,
+    return this.order.map((w) => ({
+      ammo: this.states[w].ammo,
+      mag: this.defs[w].mag,
+      id: this.defs[w].id,
+      short: this.defs[w].short,
+      name: this.defs[w].name,
     }));
   }
 
   applyActive() {
+    const active = this.weaponIndex();
     this.models.forEach((m, i) => {
-      m.group.visible = this.visible && i === this.index;
+      m.group.visible = this.visible && i === active;
     });
   }
 
@@ -214,8 +227,8 @@ export class WeaponSystem {
 
   // ------------------------------------------------------------------ control
   switchTo(i, silent = false) {
-    if (i < 0 || i >= this.defs.length) return;
-    const target = (i + this.defs.length) % this.defs.length;
+    if (i < 0 || i >= this.order.length) return;
+    const target = (i + this.order.length) % this.order.length;
     if (target === this.index) return;
     const prev = this.state;
     prev.reloading = false;
@@ -236,6 +249,23 @@ export class WeaponSystem {
     this.switchTo(this.index + dir);
   }
 
+  // The loadout is a permutation of the four guns across the four slots, so
+  // every slot always resolves to a real weapon and nothing downstream has to
+  // handle an empty hand.
+  setLoadout(ids, startSlot = 0) {
+    const all = this.defs.map((d) => d.id);
+    if (Array.isArray(ids) && ids.length === all.length) {
+      const next = ids.map((id) => all.indexOf(id));
+      const unique = new Set(next).size === all.length;
+      if (unique && next.every((i) => i >= 0)) this.order = next;
+    }
+    this.startSlot = Math.max(0, Math.min(this.order.length - 1, startSlot | 0));
+    const vis = this.visible;
+    this.reset();
+    this.setVisible(vis);
+    return this.order;
+  }
+
   reset() {
     for (let i = 0; i < this.states.length; i++) {
       const s = this.states[i];
@@ -253,7 +283,7 @@ export class WeaponSystem {
     }
     this.clearProjectiles();
     this.setVisible(true);
-    this.switchTo(0, true);
+    this.switchTo(this.startSlot, true);
     this.applyActive();
   }
 
@@ -286,7 +316,7 @@ export class WeaponSystem {
 
     // switching commits on the input event; the raise animation catches up
     if (canFire) {
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < this.order.length; i++) {
         if (input.pressed(`Digit${i + 1}`)) this.switchTo(i);
       }
       if (input.pressed('KeyQ')) this.cycle(1);
@@ -352,7 +382,7 @@ export class WeaponSystem {
     s.kick += s.kickVel * dt;
     s.kickPitch *= Math.exp(-dt * 9);
 
-    const model = this.models[this.index];
+    const model = this.models[this.weaponIndex()];
     if (!model) return;
 
     let reloadDip = 0;
@@ -416,7 +446,7 @@ export class WeaponSystem {
     // resolve the muzzle before the shot is built: tracers and rockets spawn at
     // it, and the viewmodel transform is only rebuilt later in the frame
     this.camera.updateMatrixWorld();
-    const model = this.models[this.index];
+    const model = this.models[this.weaponIndex()];
     model.muzzle.getWorldPosition(this._muzzle);
 
     if (def.kind === 'shotgun') {
