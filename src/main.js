@@ -20,6 +20,7 @@ const SENS_KEY = 'slipstream.sens';
 const VOL_KEY = 'slipstream.vol';
 const MAP_KEY = 'slipstream.map';
 const QUALITY_KEY = 'slipstream.quality';
+const DIFF_KEY = 'slipstream.diff';
 
 class Game {
   constructor() {
@@ -98,6 +99,7 @@ class Game {
     this.pendingRestart = false;
     this.best = readNumber(BEST_KEY, 0);
     this.mapId = readString(MAP_KEY, 'circuit');
+    this.difficulty = readString(DIFF_KEY, 'standard');
 
     this.weapons.onShoot = () => {
       this.shots++;
@@ -113,6 +115,7 @@ class Game {
     this.bindUi();
     this.applySettingsFromStorage();
     this.selectMap(this.mapId, true);
+    this.setDifficulty(this.difficulty, true);
     this.applyQuality(this.quality, true);
     this.hud.showStart();
     this.hud.setWeapon(0);
@@ -258,6 +261,19 @@ class Game {
       });
     }
 
+    // difficulty: in a squad the host owns the wave, so a guest only gets told
+    for (const el of document.querySelectorAll('[data-diff]')) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.audio.ui();
+        if (this.squad.isGuest) {
+          this.squad.setStatus('THE HOST SETS THE SQUAD DIFFICULTY');
+          return;
+        }
+        this.setDifficulty(el.dataset.diff);
+      });
+    }
+
     const sens = document.getElementById('sens');
     const sensVal = document.getElementById('sens-val');
     const vol = document.getElementById('vol');
@@ -313,11 +329,33 @@ class Game {
     }
     const blurb = document.getElementById('map-blurb');
     if (blurb) blurb.textContent = `${map.tag} — ${map.blurb}`;
-    this.hud.setMap(map.name);
+    this.hud.setMap(this.mapLabel());
 
     this.player.reset(this.world.spawnAt.clone());
     this.renderer.compile?.(this.scene, this.camera);
     return map;
+  }
+
+  // -------------------------------------------------------------- difficulty
+  // the arena label doubles as the tier readout, so the run always shows what
+  // rules it is being fought under
+  mapLabel() {
+    const name = this.world.mapId.toUpperCase();
+    const tier = this.enemies.mods ? this.enemies.mods.name : '';
+    return tier ? `${name} · ${tier}` : name;
+  }
+
+  setDifficulty(id, initial = false) {
+    const diff = this.enemies.setDifficulty(id);
+    this.difficulty = diff.id;
+    if (!initial) store(DIFF_KEY, diff.id);
+    for (const el of document.querySelectorAll('[data-diff]')) {
+      el.classList.toggle('sel', el.dataset.diff === diff.id);
+    }
+    const blurb = document.getElementById('diff-blurb');
+    if (blurb) blurb.textContent = `${diff.name} — ${diff.blurb}`;
+    this.hud.setMap(this.mapLabel());
+    return diff;
   }
 
   applySettingsFromStorage() {
@@ -464,7 +502,7 @@ class Game {
     this.hud.setBest(this.best);
     this.hud.setScore(0);
     this.hud.setHealth(this.player.health, this.player.maxHealth);
-    this.hud.setMap(this.world.mapId.toUpperCase());
+    this.hud.setMap(this.mapLabel());
     this.hud.setWeapon(0);
     this.hud.setAmmo(this.weapons.ammo, this.weapons.magSize, false, this.weapons.def);
     this.hud.setWave(1, 0);
@@ -496,7 +534,8 @@ class Game {
     }
     this.enemies.spawnWave(n, this.player.pos);
     this.hud.setWave(n, this.enemies.remaining());
-    this.hud.banner(`WAVE ${String(n).padStart(2, '0')}`, waveSubtitle(n));
+    const sub = n === 1 ? `${waveSubtitle(n)} · ${this.enemies.mods.name}` : waveSubtitle(n);
+    this.hud.banner(`WAVE ${String(n).padStart(2, '0')}`, sub);
     this.audio.waveStart(n);
   }
 
@@ -650,11 +689,12 @@ class Game {
       this.waveCleared = true;
       this.waveDelay = 2.6;
       const bonus = 200 + this.wave * 75;
+      const heal = this.enemies.mods.waveHeal;
       this.score += bonus;
       this.hud.setScore(this.score);
-      this.hud.banner('WAVE CLEAR', `+${bonus} BONUS · +15 INTEGRITY`);
+      this.hud.banner('WAVE CLEAR', `+${bonus} BONUS · +${heal} INTEGRITY`);
       this.audio.waveClear();
-      this.player.heal(15);
+      this.player.heal(heal);
     }
     if (this.waveCleared) {
       this.waveDelay -= dt;
