@@ -15,6 +15,7 @@ import { Input } from './input.js';
 import { TouchControls } from './touch.js';
 import { Squad } from './squad.js';
 import { EventDirector } from './events.js';
+import { Arsenal } from './inventory.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -104,6 +105,9 @@ class Game {
     // the event owns the arena list, the enemy skins and the gun skins
     this.eventId = 'neon';
     this.events = new EventDirector(this);
+    // inventory: which gun sits in which slot, and which slot a run starts on
+    this.arsenal = new Arsenal(this);
+    this.arsenal.apply();
 
     this.weapons.onShoot = () => {
       this.shots++;
