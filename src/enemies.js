@@ -69,6 +69,8 @@ export class EnemyManager {
     // difficulty mods, swapped by setDifficulty (see DIFFICULTIES)
     this.difficulty = 'standard';
     this.mods = DIFFICULTIES.standard;
+    // per-event enemy palette + silhouette, swapped by setSkin
+    this.skin = null;
     this.onPickup = null;
     // ---- squad co-op
     // Every enemy carries an id so guests can refer to it, remote bodies are
@@ -124,16 +126,20 @@ export class EnemyManager {
   }
 
   spawn(type, playerPos, opts = {}) {
-    const cfg = ENEMY_TYPES[type];
+    // an event skin overrides colour, emissive and silhouette while keeping
+    // every stat the type is balanced around
+    const base = ENEMY_TYPES[type];
+    const skin = this.skin ? this.skin[type] : null;
+    const cfg = skin ? { ...base, ...skin } : base;
     const group = new THREE.Group();
     const mods = this.mods;
     const hpScale = (1 + (this.wave - 1) * 0.075) * mods.hp;
     const speedScale = Math.min(1.6, (1 + (this.wave - 1) * 0.035) * mods.speed);
 
-    let geo;
-    if (type === 'skitter') geo = new THREE.TetrahedronGeometry(cfg.radius, 0);
-    else if (type === 'sentry') geo = new THREE.DodecahedronGeometry(cfg.radius, 0);
-    else geo = new THREE.IcosahedronGeometry(cfg.radius, 0);
+    const geo = makeShape(
+      cfg.shape || (type === 'skitter' ? 'tetra' : type === 'sentry' ? 'dodeca' : 'ico'),
+      cfg.radius
+    );
 
     const coreMat = new THREE.MeshStandardMaterial({
       color: cfg.color,
@@ -598,6 +604,13 @@ export class EnemyManager {
     return diff;
   }
 
+  // ------------------------------------------------------------------- events
+  // Enemies already alive keep the look they spawned with; the next wave and
+  // every guest mirror pick the new skin up.
+  setSkin(skin) {
+    this.skin = skin || null;
+  }
+
   // ------------------------------------------------------------ squad co-op
   hitRemoteNear(point, radius, damage, color) {
     for (const target of this.remoteTargets) {
@@ -783,6 +796,14 @@ function easeOutBack(t) {
 
 function round2(v) {
   return Math.round(v * 100) / 100;
+}
+
+function makeShape(kind, radius) {
+  if (kind === 'tetra') return new THREE.TetrahedronGeometry(radius, 0);
+  if (kind === 'dodeca') return new THREE.DodecahedronGeometry(radius, 0);
+  if (kind === 'octa') return new THREE.OctahedronGeometry(radius, 0);
+  if (kind === 'box') return new THREE.BoxGeometry(radius * 1.6, radius * 1.25, radius * 1.6);
+  return new THREE.IcosahedronGeometry(radius, 0);
 }
 
 function makeShotMesh(color) {
