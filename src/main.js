@@ -67,6 +67,9 @@ class Game {
       0.74
     );
     this.composer.addPass(this.bloom);
+    // the strength quality picked; an event may overrule it, and switching back
+    // to an event with no opinion has to restore this, not keep the last one
+    this.bloomBase = this.bloom.strength;
     this.composer.addPass(new OutputPass());
 
     this.hud = new Hud();
@@ -343,8 +346,17 @@ class Game {
     this.mapId = map.id;
     if (!initial) store(MAP_KEY, map.id);
 
-    this.scene.fog.color.setHex(this.world.fogColor || 0x05070f);
-    if (this.world.floorMat) this.world.floorMat.color.setHex(this.world.floorTint ?? 0xffffff);
+    // the event's art direction owns the atmosphere; the arena only supplies a
+    // tint of its own for the neon events, which have no art of their own
+    const art = this.world.art;
+    this.scene.fog.color.setHex(art.fog.color ?? this.world.fogColor ?? 0x05070f);
+    this.scene.fog.density = art.fog.density ?? 0.0105;
+    // bloom and exposure stay whatever quality picked unless the event asks
+    if (art.bloom.strength != null) this.bloom.strength = art.bloom.strength;
+    else this.bloom.strength = this.bloomBase;
+    if (art.bloom.radius != null) this.bloom.radius = art.bloom.radius;
+    if (art.bloom.threshold != null) this.bloom.threshold = art.bloom.threshold;
+    if (art.exposure != null) this.renderer.toneMappingExposure = art.exposure;
 
     // the arena decides the event (a squad guest adopts the host's event here)
     if (this.events) this.events.noteMap(map.id);
@@ -546,6 +558,7 @@ class Game {
     }
     // Only start the new run once the pointer is actually captured, otherwise
     // the player would end up in a running game with a dead mouse.
+
     this.pendingRestart = true;
     this.input.lock();
   }
