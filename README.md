@@ -94,6 +94,35 @@ rather than a recoloured circuit.
 - The choice is remembered between sessions (`slipstream.event`), and the arena
   picker re-renders from the selected event, so a one-arena event shows one card.
 
+### Event art direction
+
+An event owns how its arena is *rendered*, not just what is standing on it. The
+palette, the light and the air are part of the theme:
+
+| Event | Light | Air | Ground | Surfaces |
+| --- | --- | --- | --- | --- |
+| **NEON SIEGE** | cool key, magenta rim, cyan core light | night fog, star field | glowing grid | dark shells, additive edges, glowing caps |
+| **FRONTIER** | hard low sun, warm bounce | dust haze, dusty sunset, no stars | dirt street with wheel ruts | painted timber, tin roofs, dark shadow lines |
+| **WHITEOUT** | flat white overcast | freezing haze, no stars | drifted snow | pale ice, no glow |
+
+- The difference is render state, not geometry: one call repaints the merged
+  batches through a colour table, swaps the ground texture, retunes the sky, the
+  fog, the lights, the exposure and the bloom strength. Colliders, spawns and
+  pads are untouched, so the fight plays identically in every theme.
+- **FRONTIER replaces the additive edges with dark ones** and turns the glowing
+  cap planes into solid roofs. That is the whole "still neon" problem: additive
+  lines over a daylit street read as wireframe, not as a place.
+- The town is dressed the way a real one was: false fronts over the roofline,
+  porch roofs with shade painted under them, framed windows and doors, boardwalks,
+  barrels, and lettered boards — SALOON, LIVERY, MERCANTILE, ASSAY OFFICE, BARBER,
+  BANK, POST OFFICE — drawn into one canvas atlas rather than shipped as assets.
+  Facade detail lives in two extra batched meshes with no colliders, so it costs
+  no raycast work and two draw calls.
+- Daylight also means no star field, the neon core light off, and bloom cut to a
+  tenth: a muzzle flash should still pop, but nothing in a sunlit street glows.
+- Switching back restores the chrome kit exactly, because the defaults live in
+  one place (`DEFAULT_ART`) and each event only states its differences.
+
 ## Inventory and loadout
 
 The **ARSENAL** button on the start screen opens the inventory: the four guns
@@ -341,8 +370,8 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/account.js` | Local accounts, hashed passcodes, sessions and account-scoped storage |
 | `src/daily.js` | Daily supply drop: seven-day cycle, streaks, one claim per operator per day |
 | `src/maps.js` | The five arena layouts and the map registry |
-| `src/events.js` | Event bundles (arena, enemy skin, gun skin), start-screen pickers, skin application |
-| `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
+| `src/events.js` | Event bundles (arena, enemy skin, gun skin, art direction), start-screen pickers, skin application |
+| `src/world.js` | Collider set, merged geometry batches, spawns, jump pads, event art direction |
 | `src/difficulty.js` | Difficulty tiers and the levers each one scales |
 | `src/enemies.js` | Waves, AI steering, projectiles, pickups, radius damage, the every-fifth-wave warden |
 | `src/net.js` | PeerJS transport: room codes, hosting, dialling, packets |
@@ -386,6 +415,11 @@ the active mode on the start screen.
   wave five fielding a bigger warden with a thinner escort, the bar appearing at
   full hull, shortening with damage, turning hot under a third and clearing on
   the kill, the payout, and a guest mirroring the host's boss and its health.
+- `test/eventlook.mjs`: what each event does to the renderer — the town dropping
+  additive outlines and self-lit surfaces, its painted timber and dirt street, a
+  warm sun and dust fog with no star field, lettered storefronts and dressed
+  facades, the ice basin's snow and overcast, and the chrome kit coming back
+  intact (blending modes, bloom, grid floor, empty dressing) after switching.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
   390×844 portrait, plus a desktop regression run) checking stick movement, look
   deltas, firing, reload, jump, dash cooldown, pause/resume, portrait FOV, weapon
