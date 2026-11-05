@@ -49,9 +49,34 @@ export const ENEMY_TYPES = {
     telegraph: 0.65,
     burst: 3,
   },
+  // Bosses. Every fifth wave fields a warden: it fights by the same rules as the
+  // sentry — one hull, one weak point, one telegraphed volley — only at a scale
+  // that owns the arena, so nothing downstream needs a second code path.
+  warden: {
+    name: 'WARDEN',
+    boss: true,
+    hp: 2400,
+    speed: 2.4,
+    radius: 2.35,
+    headRadius: 0.8,
+    baseY: 3.9,
+    color: 0xffb020,
+    emissive: 0x8a4400,
+    score: 1500,
+    damage: 13,
+    projectileSpeed: 25,
+    idealRange: 19,
+    fireDelay: [1.5, 2.2],
+    telegraph: 0.85,
+    burst: 5,
+    shape: 'dodeca',
+  },
 };
 
-const TYPE_ORDER = ['drifter', 'skitter', 'sentry'];
+// how often the warden shows up, in waves
+export const BOSS_EVERY = 5;
+
+const TYPE_ORDER = ['drifter', 'skitter', 'sentry', 'warden'];
 
 export class EnemyManager {
   constructor(scene, audio, effects, world, camera) {
@@ -88,7 +113,10 @@ export class EnemyManager {
   // ---------------------------------------------------------------- spawning
   spawnWave(wave, playerPos) {
     this.wave = wave;
-    const scale = this.mods.count;
+    // every fifth wave belongs to the warden: the escort thins out so the boss
+    // is the fight rather than the background
+    const bossWave = wave % BOSS_EVERY === 0;
+    const scale = this.mods.count * (bossWave ? 0.5 : 1);
     const drifters = Math.max(
       1,
       Math.min(12, Math.round(Math.min(9, 2 + Math.ceil(wave * 0.8)) * scale))
@@ -106,6 +134,8 @@ export class EnemyManager {
     // always open with a drifter so the first target is readable
     const first = list.indexOf('drifter');
     if (first > 0) [list[0], list[first]] = [list[first], list[0]];
+    // the boss arrives on the first beat, ahead of its escort
+    if (bossWave) list.unshift('warden');
     this.queue = list.map((type, i) => ({ type, t: i * 0.28 }));
     this._playerPos = playerPos;
   }
@@ -179,13 +209,31 @@ export class EnemyManager {
     ring.rotation.x = Math.PI / 2.3;
     group.add(ring);
 
-    if (type === 'sentry') {
+    if (type === 'sentry' || cfg.boss) {
       const ring2 = ring.clone();
       ring2.material = ring.material.clone();
       ring2.rotation.set(Math.PI / 1.7, 0.4, 0);
       ring2.scale.setScalar(1.22);
       group.add(ring2);
       group.userData.ring2 = ring2;
+    }
+
+    // the warden wears a second wireframe hull, so its silhouette reads as a
+    // boss at range instead of a big sentry
+    if (cfg.boss) {
+      const shell = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(cfg.radius * 0.8, 0),
+        new THREE.MeshStandardMaterial({
+          color: cfg.color,
+          emissive: cfg.emissive,
+          emissiveIntensity: 0.8,
+          roughness: 0.45,
+          metalness: 0.7,
+          wireframe: true,
+        })
+      );
+      group.add(shell);
+      group.userData.shell = shell;
     }
 
     // bright eye so the enemy has a clear front
@@ -296,8 +344,14 @@ export class EnemyManager {
   kill(enemy) {
     enemy.dead = true;
     this.effects.explosion(enemy.pos, enemy.cfg.color);
+    if (enemy.cfg.boss) {
+      // a boss death has to read from anywhere in the arena
+      this.effects.ring(enemy.pos, enemy.cfg.color, 3.6, 0.9, 6);
+      this.effects.burst(enemy.pos, enemy.cfg.color, 64, 12, 0.26, 1.1, 4);
+      this.effects.flash(enemy.pos, enemy.cfg.color, 7, 0.3);
+    }
     this.audio.enemyDie(enemy.pos, this.camera);
-    if (Math.random() < 0.16) this.spawnPickup(enemy.pos.clone());
+    if (Math.random() < (enemy.cfg.boss ? 1 : 0.16)) this.spawnPickup(enemy.pos.clone());
   }
 
   spawnPickup(pos) {
@@ -405,6 +459,7 @@ export class EnemyManager {
       e.cage.rotation.x += dt * 0.5;
       e.ring.rotation.z += dt * (e.type === 'sentry' ? 1.6 : 2.2);
       if (e.group.userData.ring2) e.group.userData.ring2.rotation.z -= dt * 2.4;
+      if (e.group.userData.shell) e.group.userData.shell.rotation.y -= dt * 0.7;
 
       e.flash = Math.max(0, e.flash - dt * 4.5);
       const chargeGlow = e.charge > 0 ? Math.sin(e.charge * 40) * 0.5 + 0.5 : 0;
@@ -594,6 +649,18 @@ export class EnemyManager {
     return this.list.filter((e) => !e.dead).length + this.queue.length;
   }
 
+  waveIsBoss(wave) {
+    return (wave || this.wave) % BOSS_EVERY === 0;
+  }
+
+  // The warden, if one is on the board. The HUD's boss bar follows this rather
+  // than the wave number, so it appears when the boss arrives and clears on the
+  // frame it dies — and a guest finds its mirrored copy the same way.
+  findBoss() {
+    for (const e of this.list) if (!e.dead && e.cfg.boss) return e;
+    return null;
+  }
+
   // ------------------------------------------------------------------ tuning
   // Guests never run the AI, but adopting the host's tier keeps local spawns
   // and readouts consistent with the wave the host is actually driving.
@@ -735,6 +802,7 @@ export class EnemyManager {
       e.cage.rotation.x += dt * 0.5;
       e.ring.rotation.z += dt * 2.2;
       if (e.group.userData.ring2) e.group.userData.ring2.rotation.z -= dt * 2.4;
+      if (e.group.userData.shell) e.group.userData.shell.rotation.y -= dt * 0.7;
       e.flash = Math.max(0, e.flash - dt * 4.5);
       const glow = e.charge > 0 ? Math.sin(time * 40) * 0.5 + 0.5 : 0;
       e.core.material.emissiveIntensity = 1.5 + e.flash * 7 + glow * 3.5;
