@@ -635,6 +635,7 @@ class Game {
       if (airborne) this.hud.popCenter('AIRBORNE +40', 'bonus', -96);
       const coins = this.gainCoins(this.armory.killCoins(res.score));
       if (coins > 0) this.hud.popAtWorld(point, this.camera, `+${coins} COINS`, 'bonus', 64);
+      if (enemy.cfg.boss) this.hud.popCenter('WARDEN DOWN', 'bonus', -120);
       this.hitstop = 0.04;
       this.player.addShake(0.18);
       this.hud.setScore(this.score);
@@ -714,6 +715,11 @@ class Game {
     this.hud.crosshairSpread(this.weapons.spreadPixels());
     this.hud.setFocused(this.weapons.ads > 0.5);
 
+    // the boss bar tracks the live warden, so it appears with the boss and clears
+    // the frame it dies — on the host and on every guest alike
+    const boss = this.enemies.findBoss();
+    this.hud.setBoss(boss ? boss.cfg.name || 'BOSS' : null, boss ? boss.hp / boss.maxHp : 0);
+
     if (this.combo > 0) {
       this.comboTimer -= dt;
       if (this.comboTimer <= 0) this.combo = 0;
@@ -758,7 +764,7 @@ class Game {
 function waveSubtitle(n) {
   if (n === 1) return 'SWARM DETECTED';
   if (n === 2) return 'SKITTERS INBOUND';
-  if (n % 5 === 0) return 'ELITE SURGE';
+  if (n % 5 === 0) return 'THE WARDEN WAKES';
   if (n === 3) return 'SENTRIES ONLINE';
   return 'HOSTILES INBOUND';
 }
