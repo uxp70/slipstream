@@ -215,6 +215,80 @@ check(
   `${arsenal.restored}/${JSON.stringify(arsenal.restoredOrder)}`
 );
 
+// --------------------------------------------------------------- accounts
+const account = await page.evaluate(async () => {
+  const g = window.__game;
+  const out = {};
+  // start from a clean account list so the run is repeatable
+  localStorage.removeItem('slipstream.accounts');
+  localStorage.removeItem('slipstream.session');
+  g.accounts.list = [];
+  g.accounts.current = null;
+
+  document.getElementById('btn-account').click();
+  out.visible = !document.getElementById('screen-login').classList.contains('hidden');
+
+  g.accounts.setMode('create');
+  document.getElementById('login-name').value = 'NOVA';
+  document.getElementById('login-pass').value = 'pass1234';
+  await g.accounts.submit();
+  out.signedIn = g.accounts.current?.name || '';
+  out.closed = document.getElementById('screen-login').classList.contains('hidden');
+  out.label = document.getElementById('account-label').textContent;
+  out.squadName = g.squad.name;
+  out.session = !!localStorage.getItem('slipstream.session');
+
+  // the passcode is never stored in a form that reads back
+  out.hashLooksHashed = /^[A-Za-z0-9+/=]{40,}$/.test(g.accounts.list[0].hash);
+  out.plainStored = JSON.stringify(g.accounts.list).includes('pass1234');
+
+  // coins follow the account, not the device
+  g.armory.coins = 750;
+  g.armory.save();
+  out.accountCoins = g.armory.coins;
+  g.accounts.signOut();
+  out.guestCoins = g.armory.coins;
+
+  // a wrong passcode does not sign you in
+  g.accounts.setMode('signin');
+  document.getElementById('login-name').value = 'NOVA';
+  document.getElementById('login-pass').value = 'notmypass';
+  await g.accounts.submit();
+  out.badSignIn = g.accounts.current;
+  out.badStatus = document.getElementById('login-status').textContent;
+
+  // the right one does, and brings the wallet back
+  document.getElementById('login-pass').value = 'pass1234';
+  await g.accounts.submit();
+  out.backName = g.accounts.current?.name || '';
+  out.backCoins = g.armory.coins;
+
+  // a boot with a live session restores the same operator
+  out.restored = g.accounts.restore()?.name || '';
+
+  // a co-op kill confirmed by the host pays this account
+  const before = g.armory.coins;
+  g.squad.onGuestMessage({ t: 'coin', n: 42 });
+  out.coinCredit = g.armory.coins - before;
+
+  // leave the suite in guest mode so the armory checks below use plain keys
+  g.accounts.signOut();
+  out.signedOutLabel = document.getElementById('account-label').textContent;
+  return out;
+});
+console.log('account:', JSON.stringify(account));
+check(account.visible && account.closed, 'account screen opens and closes');
+check(account.signedIn === 'NOVA' && account.label === 'NOVA', 'creating an account signs you in', `${account.signedIn}/${account.label}`);
+check(account.squadName === 'NOVA', 'the account callsign becomes the squad identity', account.squadName);
+check(account.session, 'the session is remembered');
+check(account.hashLooksHashed && !account.plainStored, 'the passcode is stored as a hash');
+check(account.accountCoins === 750 && account.guestCoins !== 750, 'coins belong to the account', `account=${account.accountCoins} guest=${account.guestCoins}`);
+check(account.badSignIn === null && /WRONG PASSCODE/.test(account.badStatus), 'a wrong passcode is refused', account.badStatus);
+check(account.backName === 'NOVA' && account.backCoins === 750, 'signing back in restores the wallet', `${account.backName}/${account.backCoins}`);
+check(account.restored === 'NOVA', 'a live session restores the operator', account.restored);
+check(account.coinCredit === 42, 'a host-confirmed kill pays the guest', `+${account.coinCredit}`);
+check(account.signedOutLabel === 'GUEST', 'signing out returns to guest', account.signedOutLabel);
+
 // ----------------------------------------------------------------- armory
 const armory = await page.evaluate(() => {
   const g = window.__game;
@@ -533,7 +607,7 @@ const slotBox = await tpage.evaluate(() => {
 });
 check(slotBox.w >= 100 && slotBox.h >= 26, 'touch weapon slots are thumb sized', `${Math.round(slotBox.w)}x${Math.round(slotBox.h)}`);
 await tpage.touchscreen.tap(slotBox.x, slotBox.y);
-await tpage.waitForTimeout(200);
+await page.waitForTimeout(200);
 check((await tpage.evaluate(() => window.__game.weapons.index)) === 2, 'tapping the strip swaps to the railgun on touch');
 
 const touchCalls = await tpage.evaluate(() => window.__game.drawCalls);
