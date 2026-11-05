@@ -161,6 +161,30 @@ and a passcode, either created there or entered to come back to an existing one.
   progression layer between sessions and operators on one device, and the seam a
   hosted provider would sit behind later.
 
+## Daily rewards
+
+The **DAILY REWARD** row on the start screen pays coins once per calendar day,
+on a seven-day cycle that climbs and then restarts:
+
+| Day | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Coins | 40 | 60 | 90 | 140 | 200 | 280 | 420 |
+| Name | Patch kit | Field ration | Ammo cache | Supply crate | Munitions crate | Titanium haul | Jackpot |
+
+- **A streak, not a checklist.** Claiming on consecutive days walks up the cycle
+  and the seventh day pays in full before the cycle wraps back to day one. Miss a
+  day and the next claim starts the run over.
+- **Per operator.** The streak, the last claim date and the lifetime total live on
+  the account, so signing in keeps your run going and signing out leaves the
+  guest streak intact. The coins land in the wallet the armory spends from, which
+  is what makes a streak worth more than the coins on the card.
+- **One claim a day.** The stored claim date is the guard: a second press the
+  same day is refused and the panel shows the countdown to the next drop.
+- The calendar comes from the device clock, because the game is static files with
+  no server. Moving the clock forward lets a player claim early and nothing
+  offline can prevent that; what the code does refuse is a claim timestamped
+  *after* now — a clock set backwards — so a claim can never silently pay twice.
+
 ## Difficulties
 
 Three tiers, chosen on the start screen and remembered between sessions:
@@ -296,6 +320,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/inventory.js` | Arsenal inventory: loadout slots, starting slot, persistence |
 | `src/buffs.js` | Coin balance, the buff catalogue, and the armory screen |
 | `src/account.js` | Local accounts, hashed passcodes, sessions and account-scoped storage |
+| `src/daily.js` | Daily supply drop: seven-day cycle, streaks, one claim per operator per day |
 | `src/maps.js` | The five arena layouts and the map registry |
 | `src/events.js` | Event bundles (arena, enemy skin, gun skin), start-screen pickers, skin application |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
@@ -332,6 +357,11 @@ the active mode on the start screen.
   size, enemy health, damage, speed and the wave-clear repair), weapon switching
   and per-weapon ammo, projectile and splash damage, FRAMES/AUTO quality
   behaviour, draw-call budget, and console error checks on desktop and touch.
+- `test/daily.mjs`: the supply drop on its own, walking a week of claims at
+  explicit timestamps — the streak climbing, the cycle wrapping to day one, a
+  missed day resetting it, a second same-day claim refused, a clock set back
+  refused, the streak belonging to the operator, and the claim button paying the
+  wallet the armory spends from.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
   390×844 portrait, plus a desktop regression run) checking stick movement, look
   deltas, firing, reload, jump, dash cooldown, pause/resume, portrait FOV, weapon
