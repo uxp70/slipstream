@@ -7,9 +7,10 @@ mouse or with touch controls on a phone, solo or in an online squad of up to fou
 
 **Play it:** https://uxp70.github.io/slipstream/
 
-Pick one of three arenas on the start screen, then fight through waves with four
-distinct weapons and an instant weapon switch. Create a squad to bring up to
-three other players into the same wave.
+Pick an event on the start screen — each one bundles its own arena, enemy skin and
+gun skin — then fight through waves with four distinct weapons and an instant
+weapon switch. Create a squad to bring up to three other players into the same
+wave.
 
 ## Movement
 
@@ -54,17 +55,44 @@ different ranges instead of being upgrades of one another:
 
 ## Arenas
 
-Three hand-built layouts on the same movement kit, chosen for different fight
-shapes:
+Five hand-built layouts on the same movement kit, chosen for different fight
+shapes. The three NEON SIEGE arenas are always available; DUSTFALL and GLACIER
+arrive with their events:
 
 | Arena | Layout |
 | --- | --- |
 | **CIRCUIT** | Single wide atrium with a sunken centre and a ring of pillars — keeps fights at mid range and rewards the rifle |
 | **SPIRE** | Vertical jungle gym: stacked platforms and pads over a deep shaft, for air-strafe duels and rail angles |
 | **RIFT** | Long canyon with a raised span across the middle and hard cover walls, for spray control and rocket arcs |
+| **DUSTFALL** | Frontier main street: two rows of false-front storefronts, boardwalks either side, wagons and a water tower |
+| **GLACIER** | Frozen basin: four ice shelves at staggered heights around a frozen well, two high bridges and pale spires |
 
 Each arena brings its own collider set, spawn ring, fog colour and jump-pad
-placement; the start screen shows a blurb for the selected map.
+placement; the start screen shows a blurb for the selected arena.
+
+## Events
+
+An event is a theme bundle: an arena list, an enemy skin and a gun skin. One pick
+on the start screen swaps all three, so each event reads as a different fight
+rather than a recoloured circuit.
+
+| Event | Arena | Enemy skin | Gun skin |
+| --- | --- | --- | --- |
+| **NEON SIEGE** | CIRCUIT, SPIRE, RIFT | default shells | default chrome |
+| **FRONTIER** (wild west) | DUSTFALL | brass and rust, angular shells — drifters become octahedra, sentries become crates | walnut and gunmetal with an ember glow |
+| **WHITEOUT** (cryo) | GLACIER | pale ice blue, frosted shells, one faceted silhouette per type | brushed steel with an ice-blue glow |
+
+- The arena decides the event: every arena belongs to exactly one event, so a
+  co-op guest adopts the host's event from the map it joins and no extra message
+  is needed in the squad protocol.
+- Enemy skins override colour, emissive and silhouette only; health, speed,
+  damage, fire range and score still come from the type and the difficulty tier,
+  so an event never changes the balance.
+- Gun skins recolour the four merged viewmodel materials (`body`, `dark`, `glow`,
+  `accent`) in place. The original colours are remembered the first time a skin is
+  applied, so switching back to NEON SIEGE restores the base kit exactly.
+- The choice is remembered between sessions (`slipstream.event`), and the arena
+  picker re-renders from the selected event, so a one-arena event shows one card.
 
 ## Difficulties
 
@@ -192,13 +220,14 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 
 | File | Role |
 | --- | --- |
-| `src/main.js` | Boot, loop, game state, DOM wiring, map and difficulty selection, adaptive quality |
+| `src/main.js` | Boot, loop, game state, DOM wiring, map, event and difficulty selection, adaptive quality |
 | `src/player.js` | Movement, collision, camera, dash, slide |
 | `src/input.js` | Keyboard/mouse plus the virtual input used by touch |
 | `src/touch.js` | Thumbstick, look surface, on-screen buttons, weapon strip |
 | `src/weapon.js` | The four weapons: fire modes, reloads, spread, projectiles |
 | `src/weaponModels.js` | Viewmodels, muzzle flash, merged by material |
-| `src/maps.js` | The three arena layouts |
+| `src/maps.js` | The five arena layouts and the map registry |
+| `src/events.js` | Event bundles (arena, enemy skin, gun skin), start-screen pickers, skin application |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
 | `src/difficulty.js` | Difficulty tiers and the levers each one scales |
 | `src/enemies.js` | Waves, AI steering, projectiles, pickups, radius damage |
@@ -209,7 +238,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/hud.js` | HUD updates, weapon strip, map label, FPS readout, banners |
 | `src/audio.js` | Procedural Web Audio engine |
 | `src/style.css` | Base HUD and screens |
-| `src/ui.css` | Weapon strip, map picker, quality controls and squad panel |
+| `src/ui.css` | Weapon strip, event and map pickers, quality controls and squad panel |
 | `src/touch.css` | Touch layout overrides and portrait handling |
 
 ## Performance
@@ -223,10 +252,11 @@ the active mode on the start screen.
 ## Verification
 
 - `test/features.mjs`: map selection (three distinct layouts, pads, spawns,
-  merged batches), difficulty scaling (wave size, enemy health, damage, speed and
-  the wave-clear repair), weapon switching and per-weapon ammo, projectile and
-  splash damage, FRAMES/AUTO quality behaviour, draw-call budget, and console
-  error checks on desktop and touch.
+  merged batches), events (one arena list per event, enemy palette and silhouette
+  swaps, gun-skin colours, HUD label), difficulty scaling (wave size, enemy
+  health, damage, speed and the wave-clear repair), weapon switching and
+  per-weapon ammo, projectile and splash damage, FRAMES/AUTO quality behaviour,
+  draw-call budget, and console error checks on desktop and touch.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
   390×844 portrait, plus a desktop regression run) checking stick movement, look
   deltas, firing, reload, jump, dash cooldown, pause/resume, portrait FOV, weapon
