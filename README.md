@@ -94,6 +94,25 @@ rather than a recoloured circuit.
 - The choice is remembered between sessions (`slipstream.event`), and the arena
   picker re-renders from the selected event, so a one-arena event shows one card.
 
+## Inventory and loadout
+
+The **ARSENAL** button on the start screen opens the inventory: the four guns
+with their damage, cyclic rate, magazine and reload, the four carry slots, and
+which slot a run starts holding.
+
+- **Slots are the loadout.** Equipping a gun into an occupied slot swaps the two,
+  so all four are always carried and no slot is ever empty — nothing downstream
+  has to handle an empty hand.
+- The number keys, the mouse wheel, `Q`, the touch strip and the HUD labels all
+  address slots, so they follow the loadout without a second code path.
+- **START WITH** picks which slot the run begins holding, which is a real choice
+  against a first wave (a launcher start plays very differently from a rifle
+  start).
+- The loadout and the starting slot persist (`slipstream.loadout`,
+  `slipstream.startslot`), and **reset** restores the default kit.
+- The HUD strip stays static markup because touch binds to those buttons once, so
+  the labels are patched in place instead of re-rendering the list.
+
 ## Difficulties
 
 Three tiers, chosen on the start screen and remembered between sessions:
@@ -226,6 +245,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/touch.js` | Thumbstick, look surface, on-screen buttons, weapon strip |
 | `src/weapon.js` | The four weapons: fire modes, reloads, spread, projectiles |
 | `src/weaponModels.js` | Viewmodels, muzzle flash, merged by material |
+| `src/inventory.js` | Arsenal inventory: loadout slots, starting slot, persistence |
 | `src/maps.js` | The five arena layouts and the map registry |
 | `src/events.js` | Event bundles (arena, enemy skin, gun skin), start-screen pickers, skin application |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
@@ -238,7 +258,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/hud.js` | HUD updates, weapon strip, map label, FPS readout, banners |
 | `src/audio.js` | Procedural Web Audio engine |
 | `src/style.css` | Base HUD and screens |
-| `src/ui.css` | Weapon strip, event and map pickers, quality controls and squad panel |
+| `src/ui.css` | Weapon strip, event and map pickers, arsenal, quality controls and squad panel |
 | `src/touch.css` | Touch layout overrides and portrait handling |
 
 ## Performance
@@ -253,8 +273,10 @@ the active mode on the start screen.
 
 - `test/features.mjs`: map selection (three distinct layouts, pads, spawns,
   merged batches), events (one arena list per event, enemy palette and silhouette
-  swaps, gun-skin colours, HUD label), difficulty scaling (wave size, enemy
-  health, damage, speed and the wave-clear repair), weapon switching and
+  swaps, gun-skin colours, HUD label), the inventory (four guns and four slots,
+  equipping into a slot changes what key 1 fires, starting slot, persistence and
+  reset), difficulty scaling (wave size, enemy health, damage, speed and the
+  wave-clear repair), weapon switching and
   per-weapon ammo, projectile and splash damage, FRAMES/AUTO quality behaviour,
   draw-call budget, and console error checks on desktop and touch.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
