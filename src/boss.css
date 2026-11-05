@@ -1,0 +1,75 @@
+/* Boss HUD. The bar is written by the warden itself (see hud.setBoss), so this
+   sheet only owns where it sits and how the hull reads. */
+#boss-bar {
+  position: absolute;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(380px, 42vw);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+#boss-bar.on {
+  opacity: 1;
+}
+.boss-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  color: rgba(255, 214, 138, 0.9);
+}
+.boss-tag {
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 176, 32, 0.55);
+  font-size: 8px;
+  letter-spacing: 0.24em;
+  color: #ffb020;
+}
+#boss-name {
+  color: #fff;
+  letter-spacing: 0.24em;
+}
+#boss-pct {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.62);
+  font-variant-numeric: tabular-nums;
+}
+.boss-track {
+  height: 8px;
+  border: 1px solid rgba(255, 176, 32, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.boss-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #ff8a2b, #ffd24a);
+  box-shadow: 0 0 16px rgba(255, 176, 32, 0.75);
+  transition: width 0.16s linear;
+}
+#boss-bar.hurt .boss-fill {
+  background: linear-gradient(90deg, #ff2d55, #ff8a2b);
+  box-shadow: 0 0 16px rgba(255, 59, 97, 0.8);
+}
+
+/* Touch shares the top of the screen with the wave readout and the corner
+   blocks, so the bar drops below the readout and shrinks. */
+body.touch #boss-bar {
+  top: calc(var(--pad-t) + 74px);
+  width: min(330px, 54vw);
+}
+
+/* Portrait has no room beside the vitals: a full-width strip below them reads
+   better than a squeezed bar. */
+@media (orientation: portrait) {
+  body.touch #boss-bar {
+    top: calc(var(--pad-t) + 158px);
+    width: calc(100vw - var(--pad-l) - var(--pad-r));
+  }
+}

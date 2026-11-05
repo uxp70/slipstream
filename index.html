@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>SLIPSTREAM — Neon Arena Shooter</title>
     <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/boss.css" />
   </head>
   <body>
     <div id="app"></div>
@@ -53,6 +54,15 @@
           <div class="combo-label">CHAIN <b id="combo-num">0</b></div>
           <div class="combo-track"><div class="combo-fill" id="combo-fill"></div></div>
         </div>
+      </div>
+
+      <div id="boss-bar" class="boss-bar">
+        <div class="boss-head">
+          <span class="boss-tag">BOSS</span>
+          <span id="boss-name">WARDEN</span>
+          <span id="boss-pct">100%</span>
+        </div>
+        <div class="boss-track"><div class="boss-fill" id="boss-fill"></div></div>
       </div>
 
       <div class="hud-bottom-left">
