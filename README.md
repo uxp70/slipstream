@@ -113,6 +113,33 @@ which slot a run starts holding.
 - The HUD strip stays static markup because touch binds to those buttons once, so
   the labels are patched in place instead of re-rendering the list.
 
+## Coins and buffs
+
+Kills and cleared waves pay **coins**, which are banked between sessions
+(`slipstream.coins`). The **ARMORY** button on the start screen spends them on
+buffs for the next run — and only the next run:
+
+| Buff | Effect per stack | Stacks |
+| --- | --- | --- |
+| **OVERCLOCK ROUNDS** | +12% weapon damage | 3 |
+| **REINFORCED PLATING** | +20 max integrity, and the bar starts full | 3 |
+| **SCRAMBLE THRUSTERS** | −15% dash cooldown | 3 |
+| **SALVAGE DRONE** | +25% coins from kills | 3 |
+
+- Buying arms the stack; nothing is applied until the run starts, and the run
+  that starts spends what was armed. Buying is therefore a plan for one fight,
+  not a permanent upgrade.
+- Each further stack of the same buff costs 60% more than the last, so three
+  packs of rounds is a real commitment rather than the default purchase.
+- A drifter pays about 15 coins, a sentry about 20, and a cleared wave pays
+  `20 + 8 × wave`, so a decent run funds a buff or two.
+- Buffs are personal. Damage is applied before a hit is reported, so a co-op
+  guest sends its boosted number and the host applies it unchanged; integrity and
+  dash are local to your own player. The host stays the only authority over the
+  wave and the score.
+- **DISARM ALL** clears the armed stacks without a refund, for when you would
+  rather save the coins.
+
 ## Difficulties
 
 Three tiers, chosen on the start screen and remembered between sessions:
@@ -246,6 +273,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/weapon.js` | The four weapons: fire modes, reloads, spread, projectiles |
 | `src/weaponModels.js` | Viewmodels, muzzle flash, merged by material |
 | `src/inventory.js` | Arsenal inventory: loadout slots, starting slot, persistence |
+| `src/buffs.js` | Coin balance, the buff catalogue, and the armory screen |
 | `src/maps.js` | The five arena layouts and the map registry |
 | `src/events.js` | Event bundles (arena, enemy skin, gun skin), start-screen pickers, skin application |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
@@ -258,7 +286,7 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/hud.js` | HUD updates, weapon strip, map label, FPS readout, banners |
 | `src/audio.js` | Procedural Web Audio engine |
 | `src/style.css` | Base HUD and screens |
-| `src/ui.css` | Weapon strip, event and map pickers, arsenal, quality controls and squad panel |
+| `src/ui.css` | Weapon strip, event and map pickers, arsenal, armory, quality controls and squad panel |
 | `src/touch.css` | Touch layout overrides and portrait handling |
 
 ## Performance
@@ -275,7 +303,9 @@ the active mode on the start screen.
   merged batches), events (one arena list per event, enemy palette and silhouette
   swaps, gun-skin colours, HUD label), the inventory (four guns and four slots,
   equipping into a slot changes what key 1 fires, starting slot, persistence and
-  reset), difficulty scaling (wave size, enemy health, damage, speed and the
+  reset), the armory (coin balance, buying, stacking prices, a purchase the
+  wallet cannot cover, and the buff effects the next run starts with), difficulty
+  scaling (wave size, enemy health, damage, speed and the
   wave-clear repair), weapon switching and
   per-weapon ammo, projectile and splash damage, FRAMES/AUTO quality behaviour,
   draw-call budget, and console error checks on desktop and touch.
