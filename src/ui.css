@@ -606,3 +606,137 @@ body.touch .arsenal-slot,
 body.touch .gun-card {
   min-height: 44px;
 }
+
+/* ===================== ARMORY / COINS / BUFFS ===================== */
+
+.buffs-row {
+  margin-top: 6px;
+}
+
+.coin-chip {
+  padding: 4px 9px;
+  background: rgba(60, 44, 10, 0.5);
+  border: 1px solid rgba(255, 196, 84, 0.35);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 214, 130, 0.75);
+}
+.coin-chip b {
+  color: #ffd166;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+#armory-summary {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: rgba(170, 210, 225, 0.45);
+}
+
+#screen-armory {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px 0;
+}
+
+.coin-line {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: rgba(200, 180, 140, 0.6);
+  margin-bottom: 12px;
+}
+.coin-line b {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: #ffd166;
+  text-shadow: 0 0 18px rgba(255, 190, 80, 0.45);
+}
+
+.armory-buffs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+  width: min(560px, 90vw);
+  margin: 0 auto 12px;
+}
+
+.buff-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 10px;
+  text-align: left;
+  background: rgba(10, 20, 32, 0.6);
+  border: 1px solid rgba(255, 196, 84, 0.18);
+  color: rgba(210, 200, 190, 0.62);
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.buff-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 196, 84, 0.45);
+}
+.buff-card.sel {
+  border-color: #ffb347;
+  background: rgba(84, 52, 20, 0.5);
+}
+/* maxed is a state, not a failure: keep it readable but clearly done */
+.buff-card.maxed {
+  cursor: default;
+  opacity: 0.6;
+}
+.buff-card.poor {
+  border-style: dashed;
+}
+.buff-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.buff-head b {
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #fff3e2;
+}
+.buff-head i {
+  font-style: normal;
+  font-size: 7.5px;
+  letter-spacing: 0.16em;
+  color: rgba(255, 190, 96, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+.buff-blurb {
+  font-size: 8px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: rgba(200, 190, 180, 0.55);
+}
+.buff-cost {
+  align-self: flex-start;
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 196, 84, 0.28);
+  font-size: 7.5px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 214, 130, 0.8);
+}
+
+@media (max-height: 480px) {
+  .buff-card {
+    padding: 6px 8px;
+  }
+  .buff-blurb {
+    display: none;
+  }
+}
+
+body.touch .buff-card {
+  min-height: 44px;
+}
