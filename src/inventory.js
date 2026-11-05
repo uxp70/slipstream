@@ -27,8 +27,8 @@ export class Arsenal {
     this.summaryEl = document.getElementById('arsenal-summary');
     this.blurbEl = document.getElementById('arsenal-blurb');
 
-    this.order = readOrder();
-    this.startSlot = readStart();
+    this.order = readOrder(this.key(LOADOUT_KEY));
+    this.startSlot = readStart(this.key(START_KEY));
     this.selected = this.order[0];
 
     document.getElementById('btn-arsenal')?.addEventListener('click', (e) => {
@@ -70,6 +70,21 @@ export class Arsenal {
       if (e.code !== 'Escape' || !this.isOpen()) return;
       this.close();
     });
+  }
+
+  // the loadout belongs to the signed-in operator, so the key is resolved at
+  // read time rather than captured once
+  key(base) {
+    return this.game.account ? this.game.account.storageKey(base) : base;
+  }
+
+  // re-read after a sign-in or sign-out
+  reload() {
+    this.order = readOrder(this.key(LOADOUT_KEY));
+    this.startSlot = readStart(this.key(START_KEY));
+    this.selected = this.order[0];
+    this.apply();
+    return this;
   }
 
   isOpen() {
@@ -129,8 +144,8 @@ export class Arsenal {
 
   save() {
     try {
-      localStorage.setItem(LOADOUT_KEY, JSON.stringify(this.order));
-      localStorage.setItem(START_KEY, String(this.startSlot));
+      localStorage.setItem(this.key(LOADOUT_KEY), JSON.stringify(this.order));
+      localStorage.setItem(this.key(START_KEY), String(this.startSlot));
     } catch {
       /* storage can be blocked; the loadout just won't persist */
     }
@@ -203,11 +218,11 @@ export class Arsenal {
   }
 }
 
-function readOrder() {
+function readOrder(storageKey = LOADOUT_KEY) {
   const ids = DEFAULT_ORDER.slice();
   let raw = null;
   try {
-    raw = JSON.parse(localStorage.getItem(LOADOUT_KEY) || 'null');
+    raw = JSON.parse(localStorage.getItem(storageKey) || 'null');
   } catch {
     raw = null;
   }
@@ -216,9 +231,9 @@ function readOrder() {
   return raw;
 }
 
-function readStart() {
+function readStart(storageKey = START_KEY) {
   try {
-    const v = Number(localStorage.getItem(START_KEY));
+    const v = Number(localStorage.getItem(storageKey));
     if (Number.isInteger(v) && v >= 0 && v < DEFAULT_ORDER.length) return v;
   } catch {
     /* fall through to the default */
