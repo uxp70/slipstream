@@ -945,3 +945,120 @@ body.touch #login-pass {
 body.touch .daily-card {
   min-height: 40px;
 }
+
+/* ===================== START SCREEN HIERARCHY ===================== */
+
+/* a hand-off list this long has to be scannable, so the pickers sit under a
+   labelled divider and the primary action is pinned to the bottom edge */
+#screen-start {
+  align-items: flex-start;
+  overflow-x: hidden;
+}
+#screen-start .start-inner {
+  margin: auto;
+}
+
+.group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(560px, 90vw);
+  margin: 32px auto 0;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(99, 245, 255, 0.14);
+  font-family: var(--mono);
+}
+.group-title {
+  font-size: 9px;
+  letter-spacing: 0.4em;
+  color: rgba(120, 235, 255, 0.85);
+}
+.group-meta {
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: rgba(170, 210, 225, 0.4);
+  text-align: right;
+}
+
+/* full-bleed, because the list scrolls underneath it and a bar that only spans
+   the text column lets rows show through at the sides */
+.start-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  width: 100vw;
+  margin: 30px 0 0 calc(50% - 50vw);
+  padding: 18px 0 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(3, 6, 11, 0) 0%,
+    rgba(3, 6, 11, 0.94) 42%,
+    #03060b 100%
+  );
+  box-shadow: 0 -18px 30px -12px rgba(3, 6, 11, 0.95);
+}
+.start-actions .cta {
+  margin-top: 0;
+}
+.start-context {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.22em;
+  color: rgba(170, 210, 225, 0.45);
+}
+.start-context #start-context {
+  color: rgba(120, 235, 255, 0.8);
+}
+.start-context .start-best b {
+  color: var(--amber);
+}
+
+/* every pressable surface answers hover, focus and press, which is what makes
+   a menu feel like hardware instead of a web page */
+.qbtn,
+.map-card,
+.event-card,
+.daily-card,
+.buff-card,
+.arsenal-slot,
+.arsenal-gun {
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease,
+    color 0.12s ease;
+}
+.qbtn:hover {
+  border-color: rgba(99, 245, 255, 0.5);
+  color: #eafcff;
+  transform: translateY(-1px);
+}
+.qbtn:active {
+  transform: translateY(1px);
+}
+.qbtn:disabled,
+.qbtn[disabled] {
+  opacity: 0.45;
+  transform: none;
+}
+button:focus-visible,
+.map-card:focus-visible,
+.event-card:focus-visible {
+  outline: 2px solid rgba(99, 245, 255, 0.8);
+  outline-offset: 3px;
+}
+
+@media (max-height: 520px) {
+  .group-head {
+    margin-top: 20px;
+  }
+  .start-actions {
+    margin-top: 18px;
+    padding: 10px 0 12px;
+  }
+}
