@@ -206,21 +206,87 @@ export function buildDustfall(w) {
   w.wallRing(47, 15, { color: 0x0d0906, edge: 0xd9822b, edgeOpacity: 0.3 });
   w.horizonStrips(47, 12.5);
 
+  const TRADES = [
+    ['ASSAY OFFICE', 'LIVERY', 'MERCANTILE'],
+    ['BARBER', 'BANK', 'POST OFFICE'],
+  ];
+  // painted false fronts: bone, sage and faded red, the three that survive sun
+  const FRONTS = [0x3a2a20, 0x2a3a30, 0x3a2020];
+
   // two rows of storefronts with a boardwalk in front of each
   for (const side of [-1, 1]) {
     for (let i = 0; i < 3; i++) {
       const z = -22 + i * 22;
       const h = 6.4 + i * 1.1;
       w.solid(side * 24, 0, z, 12, h, 14, i === 1 ? roof : plank);
-      w.solid(side * 17.4, 0, z, 2.4, 0.55, 14, { ...plank, capOpacity: 0.16 });
+      w.solid(side * 17.4, 0, z, 2.4, 0.55, 14, { ...plank, color: 0x1a1a14, capOpacity: 0.16 });
       w.solid(side * 16.4, 0, z - 6, 0.5, 4.6, 0.5, { ...plank, edge: 0xffd166, edgeOpacity: 0.4 });
       w.solid(side * 16.4, 0, z + 6, 0.5, 4.6, 0.5, { ...plank, edge: 0xffd166, edgeOpacity: 0.4 });
+
+      // False front: the tall flat screen over the roofline. It is the single
+      // shape that makes a row of buildings read as a western street, because
+      // the buildings themselves are only ever "a glorified facade".
+      w.solid(side * 17.95, h, z, 0.5, 2.4, 12.6, {
+        ...plank,
+        color: FRONTS[i],
+        cap: 0x8a5a1e,
+        capOpacity: 0.12,
+      });
+      w.solid(side * 17.95, h + 2.4, z, 0.5, 0.8, 9.4, { ...plank, capOpacity: 0.08 });
+      // porch roof deep enough to shade the boardwalk under it
+      w.solid(side * 20.2, 4.35, z, 4.8, 0.3, 14, { ...roof, capOpacity: 0.04 });
+      w.solid(side * 17.0, 4.0, z, 0.3, 0.35, 14, { ...plank, capOpacity: 0.04 });
+
+      // windows and a door on the street face, painted not modelled: a pale
+      // frame with the dark opening proud of it
+      const faceAt = (dz, y, fw, fh, color, depth = 0.12) =>
+        w.face({
+          x: side * (18 - depth),
+          y,
+          z: z + dz,
+          w: fw,
+          h: fh,
+          ry: -side * Math.PI * 0.5,
+          color,
+        });
+      for (const dz of [-4.2, 4.2]) {
+        faceAt(dz, 3.05, 2.5, 2.1, 0xc9b592, 0.1);
+        faceAt(dz, 3.05, 2.0, 1.7, 0x241f1a, 0.14);
+      }
+      faceAt(0, 1.55, 2.3, 3.0, 0xc9b592, 0.1);
+      faceAt(0, 1.55, 1.9, 2.7, 0x2b2018, 0.14);
+
+      // shade under the porch roof, which no shadow map would give us for free
+      w.face({ x: side * 20.2, y: 0.58, z, w: 4.6, h: 13.4, rx: -Math.PI / 2, color: 0x5f4c39 });
+
+      // the trade painted over the porch, so the street reads as a town
+      w.sign({
+        name: TRADES[side > 0 ? 1 : 0][i],
+        x: side * 17.55,
+        y: h + 1.15,
+        z,
+        w: 5.4,
+        h: 1.25,
+        ry: -side * Math.PI * 0.5,
+      });
+
+      // barrels and a crate on the boardwalk, at its height, not on the street
+      w.solid(side * 16.9, 0.55, z + 5.6, 0.95, 1.0, 0.95, { ...plank, cap: 0x6b4a2a, capOpacity: 0.14 });
+      w.solid(side * 16.9, 0.55, z - 5.6, 1.2, 0.8, 1.2, { ...plank, capOpacity: 0.1 });
     }
   }
 
   // saloon across the top of the street, on a raised porch
-  w.solid(0, 0, -34, 30, 8.2, 8, { ...roof, cap: 0xa8702a, capOpacity: 0.34 });
+  w.solid(0, 0, -34, 30, 8.2, 8, { ...roof, color: 0x3a2020, cap: 0xa8702a, capOpacity: 0.34 });
   w.solid(0, 0, -28.4, 26, 0.6, 3.4, { ...plank, capOpacity: 0.2 });
+  // its false front, stepped, with the biggest board in town over it
+  w.solid(0, 8.2, -34, 30, 1.6, 0.5, { ...plank, color: 0x3a2020, capOpacity: 0.08 });
+  w.solid(-13.5, 8.2, -34, 0.5, 2.4, 0.5, plank);
+  w.solid(13.5, 8.2, -34, 0.5, 2.4, 0.5, plank);
+  w.sign({ name: 'SALOON', x: 0, y: 9.1, z: -33.6, w: 9.5, h: 1.5, ry: 0 });
+  w.face({ x: -7.6, y: 3.1, z: -29.94, w: 2.6, h: 2.0, ry: 0, color: 0x1b2126 });
+  w.face({ x: 7.6, y: 3.1, z: -29.94, w: 2.6, h: 2.0, ry: 0, color: 0x1b2126 });
+  w.face({ x: 0, y: 1.75, z: -29.94, w: 2.2, h: 3.0, ry: 0, color: 0x3c2a17 });
 
   // water tower: four legs under a tank, the town's landmark
   for (const [x, z] of [[-32, 30], [-28, 30], [-32, 34], [-28, 34]]) {
@@ -244,9 +310,13 @@ export function buildDustfall(w) {
     w.solid(x, 0, z, 5, 1.3, 0.6, { ...plank, edge: 0xffd166, edgeOpacity: 0.3 });
   }
 
-  // the town well: the only cover in the middle of the street
+  // the town well: the only cover in the middle of the street, under a canopy
   w.solid(0, 0, 0, 5, 1.2, 5, { ...roof, edge: 0xffd166, capOpacity: 0.24 });
-  w.solid(0, 1.2, 0, 0.6, 4, 0.6, plank);
+  w.solid(0, 1.2, 0, 0.6, 3.6, 0.6, plank);
+  for (const [x, z] of [[-2.6, -2.6], [2.6, -2.6], [-2.6, 2.6], [2.6, 2.6]]) {
+    w.solid(x, 1.2, z, 0.35, 3.4, 0.35, plank);
+  }
+  w.solid(0, 4.6, 0, 6.6, 0.3, 6.6, { ...roof, capOpacity: 0.05 });
 
   w.padSpots = [[-34, -34], [34, 34], [-34, 34], [34, -34], [0, -40], [0, 40]];
   w.spawnAt = new w.V3(0, 1.2, 26);
