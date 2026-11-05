@@ -189,6 +189,7 @@ export class Accounts {
     this.game.squad?.useAccountName?.(record.name);
     this.game.arsenal?.reload?.();
     this.game.armory?.reload?.();
+    this.game.daily?.reload?.();
     this.paint();
     if (!silent) this.status(`SIGNED IN AS ${record.name}`);
     this.close();
@@ -201,6 +202,7 @@ export class Accounts {
     clearSession();
     this.game.arsenal?.reload?.();
     this.game.armory?.reload?.();
+    this.game.daily?.reload?.();
     this.paint();
     this.status(was ? `SIGNED OUT OF ${was.name} · PLAYING AS GUEST` : 'ALREADY PLAYING AS GUEST');
     this.setMode('signin');

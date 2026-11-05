@@ -202,6 +202,14 @@
           <span class="coin-chip"><b id="coin-num">0</b> COINS</span>
           <span id="armory-summary">NO BUFFS ARMED. EVERY RUN PAYS COINS.</span>
         </div>
+
+        <div class="graphics-row daily-row">
+          <span class="picker-label">DAILY</span>
+          <button type="button" class="qbtn" id="btn-daily">DAILY REWARD</button>
+          <span class="daily-chip"><b id="daily-label">DAY 1 READY</b></span>
+          <span id="daily-summary">STREAK ×0 · 40 COINS WAITING</span>
+        </div>
+
         <button id="btn-start" class="cta">CLICK TO JACK IN</button>
         <div class="controls controls-desktop">
           <div><kbd>W A S D</kbd><span>MOVE</span></div>
@@ -292,6 +300,20 @@
         <div class="graphics-row">
           <button type="button" class="qbtn" id="btn-armory-clear">DISARM ALL</button>
           <button type="button" class="qbtn" id="btn-armory-back">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-daily" class="screen hidden">
+      <div class="panel wide">
+        <div class="eyebrow">DAILY · SUPPLY DROP</div>
+        <h2 id="daily-title">DAY 1 OF 7</h2>
+        <div class="coin-line">COINS <b id="daily-coins">0</b></div>
+        <div class="daily-days" id="daily-days"></div>
+        <div class="map-blurb" id="daily-status"></div>
+        <button id="btn-daily-claim" class="cta small">CLAIM 40 COINS</button>
+        <div class="graphics-row">
+          <button type="button" class="qbtn" id="btn-daily-back">BACK</button>
         </div>
       </div>
     </div>
