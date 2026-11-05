@@ -184,6 +184,12 @@
           <button type="button" class="qbtn" data-quality="performance">FRAMES</button>
         </div>
 
+        <div class="graphics-row account-row">
+          <span class="picker-label">OPERATOR</span>
+          <span class="account-chip"><b id="account-label">GUEST</b></span>
+          <button type="button" class="qbtn" id="btn-account">SIGN IN</button>
+        </div>
+
         <div class="graphics-row">
           <span class="picker-label">LOADOUT</span>
           <button type="button" class="qbtn" id="btn-arsenal">ARSENAL</button>
@@ -286,6 +292,30 @@
         <div class="graphics-row">
           <button type="button" class="qbtn" id="btn-armory-clear">DISARM ALL</button>
           <button type="button" class="qbtn" id="btn-armory-back">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-login" class="screen hidden">
+      <div class="panel">
+        <div class="eyebrow">OPERATOR · ACCOUNT</div>
+        <h2 id="login-title">SIGN IN</h2>
+        <div class="login-form">
+          <label class="login-field">
+            <span>CALLSIGN</span>
+            <input id="login-name" type="text" maxlength="10" autocomplete="username" spellcheck="false" />
+          </label>
+          <label class="login-field">
+            <span>PASSCODE</span>
+            <input id="login-pass" type="password" maxlength="64" autocomplete="current-password" />
+          </label>
+        </div>
+        <div class="map-blurb" id="login-status"></div>
+        <button id="btn-login-submit" class="cta small">SIGN IN</button>
+        <div class="graphics-row">
+          <button type="button" class="qbtn" id="btn-login-mode">CREATE ACCOUNT</button>
+          <button type="button" class="qbtn hidden" id="btn-login-out">SIGN OUT</button>
+          <button type="button" class="qbtn" id="btn-login-back">BACK</button>
         </div>
       </div>
     </div>
