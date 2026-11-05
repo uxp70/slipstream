@@ -333,6 +333,8 @@ export class Hud {
     document.getElementById('over-kills').textContent = String(stats.kills);
     document.getElementById('over-acc').textContent = `${stats.accuracy}%`;
     document.getElementById('over-speed').textContent = stats.topSpeed.toFixed(1);
+    const coins = document.getElementById('over-coins');
+    if (coins) coins.textContent = String(stats.coins ?? 0);
     this.screens.over.classList.remove('hidden');
   }
 
