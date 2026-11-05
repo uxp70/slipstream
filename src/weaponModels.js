@@ -8,7 +8,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // because they animate.
 export function buildWeaponModel(def) {
   const group = new THREE.Group();
+  // the material names are the hooks an event's gun skin recolours in place
   const bodyMat = new THREE.MeshStandardMaterial({
+    name: 'body',
     color: 0x2a3a52,
     roughness: 0.42,
     metalness: 0.55,
@@ -16,14 +18,15 @@ export function buildWeaponModel(def) {
     emissiveIntensity: 0.9,
   });
   const darkMat = new THREE.MeshStandardMaterial({
+    name: 'dark',
     color: 0x111a28,
     roughness: 0.6,
     metalness: 0.4,
     emissive: 0x081420,
     emissiveIntensity: 0.6,
   });
-  const glowMat = new THREE.MeshBasicMaterial({ color: def.color });
-  const accentMat = new THREE.MeshBasicMaterial({ color: 0xffb347 });
+  const glowMat = new THREE.MeshBasicMaterial({ name: 'glow', color: def.color });
+  const accentMat = new THREE.MeshBasicMaterial({ name: 'accent', color: 0xffb347 });
 
   const parts = [];
   const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
