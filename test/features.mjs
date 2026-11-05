@@ -156,6 +156,65 @@ check(
   evInfo.whiteout.label
 );
 
+// ---------------------------------------------------------------- arsenal
+const arsenal = await page.evaluate(() => {
+  const g = window.__game;
+  const out = {};
+  g.arsenal.open();
+  out.visible = !document.getElementById('screen-arsenal').classList.contains('hidden');
+  out.guns = document.querySelectorAll('[data-gun]').length;
+  out.slots = document.querySelectorAll('#arsenal-slots [data-slot]').length;
+
+  // equip the launcher into slot 1
+  document.querySelector('[data-gun="havoc"]').click();
+  document.querySelector('#arsenal-slots [data-slot="0"]').click();
+  out.strip = document.querySelector('#weapon-strip [data-slot="0"] .wname').textContent;
+  out.stored = JSON.parse(localStorage.getItem('slipstream.loadout') || 'null');
+  g.weapons.switchTo(0, true);
+  out.slot0 = g.weapons.def.id;
+  out.weaponIndex = g.weapons.weaponIndex();
+
+  // start the next run holding slot 3
+  document.querySelector('#arsenal-start [data-start="2"]').click();
+  out.startSlot = g.weapons.startSlot;
+  out.startWeapon = g.weapons.def.id;
+
+  g.arsenal.close();
+  out.closed = document.getElementById('screen-arsenal').classList.contains('hidden');
+
+  g.arsenal.reset();
+  out.restored = document.querySelector('#weapon-strip [data-slot="0"] .wname').textContent;
+  out.restoredOrder = JSON.parse(localStorage.getItem('slipstream.loadout'));
+  return out;
+});
+console.log('arsenal:', JSON.stringify(arsenal));
+check(arsenal.visible && arsenal.closed, 'arsenal opens and closes from the start screen');
+check(
+  arsenal.guns === 4 && arsenal.slots === 4,
+  'inventory lists all four guns and four slots',
+  `${arsenal.guns}/${arsenal.slots}`
+);
+check(
+  arsenal.strip === 'HAVOC' && arsenal.slot0 === 'havoc' && arsenal.weaponIndex === 3,
+  'the gun equipped in slot 1 is the one key 1 fires',
+  `${arsenal.strip}/${arsenal.slot0}/${arsenal.weaponIndex}`
+);
+check(
+  Array.isArray(arsenal.stored) && arsenal.stored[0] === 'havoc',
+  'the loadout is persisted',
+  JSON.stringify(arsenal.stored)
+);
+check(
+  arsenal.startSlot === 2 && arsenal.startWeapon === 'lance',
+  'a run can start holding another slot',
+  `${arsenal.startSlot}/${arsenal.startWeapon}`
+);
+check(
+  arsenal.restored === 'RIFLE' && arsenal.restoredOrder[0] === 'rifle',
+  'the loadout resets to the default kit',
+  `${arsenal.restored}/${JSON.stringify(arsenal.restoredOrder)}`
+);
+
 // -------------------------------------------------------------- difficulty
 const diffCount = await page.locator('[data-diff]').count();
 check(diffCount === 3, 'start screen offers 3 difficulties', `buttons=${diffCount}`);
