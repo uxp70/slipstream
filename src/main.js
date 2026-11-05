@@ -14,6 +14,7 @@ import { Hud } from './hud.js';
 import { Input } from './input.js';
 import { TouchControls } from './touch.js';
 import { Squad } from './squad.js';
+import { EventDirector } from './events.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -100,6 +101,9 @@ class Game {
     this.best = readNumber(BEST_KEY, 0);
     this.mapId = readString(MAP_KEY, 'circuit');
     this.difficulty = readString(DIFF_KEY, 'standard');
+    // the event owns the arena list, the enemy skins and the gun skins
+    this.eventId = 'neon';
+    this.events = new EventDirector(this);
 
     this.weapons.onShoot = () => {
       this.shots++;
@@ -114,6 +118,7 @@ class Game {
     this.hud.setBest(this.best);
     this.bindUi();
     this.applySettingsFromStorage();
+    this.events.init();
     this.selectMap(this.mapId, true);
     this.setDifficulty(this.difficulty, true);
     this.applyQuality(this.quality, true);
@@ -324,9 +329,8 @@ class Game {
     this.scene.fog.color.setHex(this.world.fogColor || 0x05070f);
     if (this.world.floorMat) this.world.floorMat.color.setHex(this.world.floorTint ?? 0xffffff);
 
-    for (const el of document.querySelectorAll('[data-map]')) {
-      el.classList.toggle('sel', el.dataset.map === map.id);
-    }
+    // the arena decides the event (a squad guest adopts the host's event here)
+    if (this.events) this.events.noteMap(map.id);
     const blurb = document.getElementById('map-blurb');
     if (blurb) blurb.textContent = `${map.tag} — ${map.blurb}`;
     this.hud.setMap(this.mapLabel());
