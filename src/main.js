@@ -493,6 +493,8 @@ class Game {
     this.audio.setPaused(false);
 
     this.score = 0;
+    this.combo = 0;
+    this.comboTimer = 0;
     this.kills = 0;
     this.shots = 0;
     this.hits = 0;
