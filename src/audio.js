@@ -19,6 +19,8 @@ export class AudioEngine {
     this.ready = false;
     this.volume = 0.7;
     this.paused = false;
+    // the hangar has its own bed; a run silences it (see setMenu)
+    this.menuMode = true;
     this._tmpA = new THREE.Vector3();
     this._tmpB = new THREE.Vector3();
   }
@@ -57,6 +59,8 @@ export class AudioEngine {
 
     this.startAmbience();
     this.startWind();
+    this.startMenuPad();
+    this.setMenu(this.menuMode !== false);
   }
 
   // ---------------------------------------------------------------- helpers
@@ -630,17 +634,100 @@ export class AudioEngine {
     o.stop(t + 1.7);
   }
 
+  // ------------------------------------------------------------- menu layer
+  // Menu sounds are short (well under 150 ms) and quiet, so clicking through a
+  // row of cards is a texture rather than a stack of overlapping blips. Each
+  // one is built from a transient plus a small body, the same way the weapons
+  // are, which is what makes a 40 ms tick read as "machine" instead of "beep".
   ui() {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const t = this.now();
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(1180, t);
+    o.frequency.exponentialRampToValueAtTime(760, t + 0.05);
+    const g = ctx.createGain();
+    this.perc(g.gain, t, 0.028, 0.001, 0.055);
+    o.connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.08);
+    const n = this.noise(1.4);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 3400;
+    bp.Q.value = 1.6;
+    const ng = ctx.createGain();
+    this.perc(ng.gain, t, 0.016, 0.001, 0.03);
+    n.connect(bp).connect(ng).connect(this.master);
+  }
+
+  // A hover is quieter and higher than a press, so it says "this is pressable"
+  // without competing with the click that follows it.
+  uiHover() {
     if (!this.ready) return;
     const t = this.now();
     const o = this.ctx.createOscillator();
-    o.type = 'square';
-    o.frequency.value = 1080;
+    o.type = 'sine';
+    o.frequency.value = 2350;
     const g = this.ctx.createGain();
-    this.perc(g.gain, t, 0.03, 0.001, 0.035);
+    this.perc(g.gain, t, 0.009, 0.002, 0.028);
     o.connect(g).connect(this.master);
     o.start(t);
-    o.stop(t + 0.06);
+    o.stop(t + 0.05);
+  }
+
+  // panel transitions: a filtered noise sweep up when a screen opens and down
+  // when it closes, so navigation has direction rather than a flat click
+  uiOpen() {
+    this.uiSwoosh(1);
+  }
+
+  uiClose() {
+    this.uiSwoosh(-1);
+  }
+
+  uiSwoosh(dir) {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const t = this.now();
+    const n = this.noise(1);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.1;
+    if (dir > 0) {
+      bp.frequency.setValueAtTime(420, t);
+      bp.frequency.exponentialRampToValueAtTime(2600, t + 0.13);
+    } else {
+      bp.frequency.setValueAtTime(1900, t);
+      bp.frequency.exponentialRampToValueAtTime(360, t + 0.13);
+    }
+    const g = ctx.createGain();
+    this.perc(g.gain, t, 0.045, 0.012, 0.13);
+    n.connect(bp).connect(g);
+    g.connect(this.master);
+    g.connect(this.verbSend);
+  }
+
+  // two rising notes: the "that choice is locked in" chime
+  uiConfirm() {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const t = this.now();
+    [660, 990].forEach((f, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t + i * 0.055);
+      g.gain.exponentialRampToValueAtTime(0.03 - i * 0.008, t + i * 0.055 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.055 + 0.22);
+      o.connect(g);
+      g.connect(this.verbSend);
+      g.connect(this.master);
+      o.start(t + i * 0.055);
+      o.stop(t + i * 0.055 + 0.28);
+    });
   }
 
   // ---------------------------------------------------------------- beds
@@ -716,5 +803,52 @@ export class AudioEngine {
     air.connect(airBp).connect(airG).connect(this.master);
 
     this.ambience = bus;
+  }
+
+  // A slow, low pad that only the hangar hears. Three detuned voices through a
+  // lowpass, breathing on a 0.07 Hz swell, sitting far under the ambience so it
+  // reads as room tone rather than music.
+  startMenuPad() {
+    const ctx = this.ctx;
+    const bus = ctx.createGain();
+    bus.gain.value = 0.0001;
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1100;
+    lp.Q.value = 0.7;
+
+    [220, 277.18, 329.63].forEach((f, i) => {
+      const o = ctx.createOscillator();
+      o.type = i === 2 ? 'triangle' : 'sine';
+      o.frequency.value = f;
+      o.detune.value = (Math.random() - 0.5) * 8;
+      const g = ctx.createGain();
+      g.gain.value = i === 2 ? 0.3 : 0.55;
+      o.connect(g).connect(lp);
+      o.start();
+    });
+
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.07;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.07;
+    const trem = ctx.createGain();
+    trem.gain.value = 0.5;
+    lfo.connect(lfoGain).connect(trem.gain);
+    lfo.start();
+
+    lp.connect(trem).connect(bus).connect(this.master);
+    this.menuPad = bus;
+  }
+
+  // Called from the game state, so the hangar bed exists exactly where the
+  // hangar does. Safe before init(): the mode is remembered and applied there.
+  setMenu(on) {
+    this.menuMode = !!on;
+    if (!this.ready || !this.menuPad) return;
+    const t = this.now();
+    this.menuPad.gain.cancelScheduledValues(t);
+    this.menuPad.gain.setTargetAtTime(on ? 0.055 : 0.0001, t, 0.7);
   }
 }
