@@ -60,6 +60,12 @@ export class Hud {
     this._bannerTimer = 0;
     this._dmgTimer = 0;
 
+    this.bossBar = document.getElementById('boss-bar');
+    this.bossNameEl = document.getElementById('boss-name');
+    this.bossPctEl = document.getElementById('boss-pct');
+    this.bossFillEl = document.getElementById('boss-fill');
+    this.bossShown = false;
+
     this.buildPips(30);
     this.reset();
   }
@@ -111,6 +117,7 @@ export class Hud {
     this.hintHidden = false;
     this.lastPips = -1;
     this.hitmarkerEl.className = '';
+    this.setBoss(null, 0);
   }
 
   setHealth(cur, max) {
@@ -218,6 +225,25 @@ export class Hud {
   setWave(n, remaining) {
     this.tx(this.el.wave, String(n));
     this.tx(this.el.waveLeft, String(remaining));
+  }
+
+  // The boss bar is driven by the warden itself: name null hides it, so the bar
+  // turns up with the boss and leaves the moment it dies.
+  setBoss(name, frac) {
+    const show = !!name;
+    if (show !== this.bossShown) {
+      this.bossShown = show;
+      if (this.bossBar) this.bossBar.classList.toggle('on', show);
+    }
+    if (!show) return;
+    this.tx(this.bossNameEl, name);
+    const pct = Math.max(0, Math.min(1, frac || 0));
+    const key = String(Math.round(pct * 1000));
+    if (this.cache.bossFill === key) return;
+    this.cache.bossFill = key;
+    if (this.bossFillEl) this.bossFillEl.style.width = `${pct * 100}%`;
+    this.tx(this.bossPctEl, `${Math.ceil(pct * 100)}%`);
+    if (this.bossBar) this.bossBar.classList.toggle('hurt', pct < 0.35);
   }
 
   crosshairSpread(px) {
