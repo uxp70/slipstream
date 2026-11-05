@@ -18,6 +18,7 @@ import { EventDirector } from './events.js';
 import { Arsenal } from './inventory.js';
 import { Armory } from './buffs.js';
 import { Accounts } from './account.js';
+import { Daily } from './daily.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -116,6 +117,8 @@ class Game {
     this.arsenal.apply();
     // coins + the pre-match buff shop: armed buffs are spent by the next run
     this.armory = new Armory(this);
+    // the daily drop pays into that same wallet, so it is built after the armory
+    this.daily = new Daily(this);
     // a live session brings back the operator, its wallet and its loadout
     this.accounts.restore();
 
@@ -490,8 +493,6 @@ class Game {
     this.audio.setPaused(false);
 
     this.score = 0;
-    this.combo = 0;
-    this.comboTimer = 0;
     this.kills = 0;
     this.shots = 0;
     this.hits = 0;
