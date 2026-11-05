@@ -953,6 +953,8 @@ body.touch .daily-card {
 #screen-start {
   align-items: flex-start;
   overflow-x: hidden;
+  /* the sticky bar must reach the bottom edge: a bottom gutter here leaves a
+     strip of the list visible underneath it */
   padding-bottom: 0;
 }
 #screen-start .start-inner {
