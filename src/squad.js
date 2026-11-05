@@ -508,7 +508,7 @@ export class Squad {
       }
       return;
     }
-    if (msg.t === 'hit') this.applyRemoteHit(msg);
+    if (msg.t === 'hit') this.applyRemoteHit(msg, from);
   }
 
   onGuestMessage(msg) {
@@ -528,6 +528,15 @@ export class Squad {
     if (msg.t === 'dmg') {
       const g = this.game;
       if (g.state === 'playing' && !g.player.dead) g.player.damage(Number(msg.a) || 0, null);
+      return;
+    }
+    // the host confirmed one of our kills, so our own account gets the coins
+    if (msg.t === 'coin') {
+      const n = Math.max(0, Math.min(500, Number(msg.n) || 0));
+      if (!n) return;
+      const g = this.game;
+      g.gainCoins(n);
+      g.hud.popCenter(`+${n} COINS`, 'bonus', -100);
       return;
     }
     if (msg.t === 'full') this.setStatus('THAT SQUAD IS FULL', 'err');
@@ -583,7 +592,7 @@ export class Squad {
     this.net.send(peerId, { t: 'dmg', a: Math.round(amount) });
   }
 
-  applyRemoteHit(msg) {
+  applyRemoteHit(msg, from) {
     const g = this.game;
     const enemy = g.enemies.byId(msg.id);
     if (!enemy || enemy.dead) return;
@@ -592,6 +601,10 @@ export class Squad {
     if (!res.killed) return;
     g.kills++;
     g.score += Math.round(res.score * g.multiplier());
+    // the host is the authority on what dies, so it is also what pays: the
+    // shooter's own account is credited for a kill it landed
+    const coins = g.armory ? g.armory.killCoins(res.score) : 0;
+    if (from && coins > 0) this.net.send(from, { t: 'coin', n: coins });
     g.hud.setScore(g.score);
     g.hud.popCenter('SQUAD KILL', 'bonus', -74);
   }
@@ -650,6 +663,20 @@ export class Squad {
     g.hud.popAtWorld(info.point, g.camera, String(Math.round(info.damage)), info.headshot ? 'head' : '');
     g.audio.hit(!!info.headshot, g.combo);
     return true;
+  }
+
+  // The account callsign is the co-op identity: signing in renames the operator
+  // in the squad UI and in the hello handshake without a second name field.
+  useAccountName(name) {
+    const clean = cleanName(name);
+    this.name = clean;
+    if (this.nameEl) this.nameEl.value = clean;
+    try {
+      localStorage.setItem(NAME_KEY, clean);
+    } catch {
+      /* storage can be blocked */
+    }
+    return clean;
   }
 
   onPeerJoin(peerId) {
