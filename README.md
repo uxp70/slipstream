@@ -204,6 +204,25 @@ the HUD's arena label carries the tier while you play (`CIRCUIT · OVERCLOCK`).
 In co-op the host's tier applies to the whole squad: it travels with the run
 start, and a guest who presses a tier button is told the host decides.
 
+## Boss waves
+
+Every fifth wave sends a **WARDEN** instead of a full swarm: one large hull with
+its own health bar across the top of the HUD.
+
+- The escort thins to about half, so the boss is the fight rather than the
+  background, and the warden arrives ahead of what is left of it.
+- The bar is driven by the enemy, not by the wave number: it appears when the
+  warden spawns, shortens as it takes damage, turns red below a third of its
+  hull, and goes away on the frame it dies.
+- Nothing else is special-cased. The warden is one more entry in the enemy table
+  — same steering, same telegraphed five-shot volley, same weak point — so the
+  difficulty tiers, the event skins and the co-op snapshot need no boss path.
+- It pays 1500 score before the combo multiplier and drops a repair pickup, so
+  the wave is worth the risk it takes with your movement.
+- In co-op the host owns the warden and its health, and guests rebuild it from
+  the snapshot rows like any other hostile, so the bar shows on every screen. A
+  guest that joins mid-boss-wave sees the hull it has left, not a fresh one.
+
 ## Squad co-op (online)
 
 Up to four players fight the same wave together. The host presses **CREATE
@@ -325,16 +344,17 @@ GitHub Pages, via the workflow in `.github/workflows/deploy.yml`: every push to
 | `src/events.js` | Event bundles (arena, enemy skin, gun skin), start-screen pickers, skin application |
 | `src/world.js` | Collider set, merged geometry batches, spawns, jump pads |
 | `src/difficulty.js` | Difficulty tiers and the levers each one scales |
-| `src/enemies.js` | Waves, AI steering, projectiles, pickups, radius damage |
+| `src/enemies.js` | Waves, AI steering, projectiles, pickups, radius damage, the every-fifth-wave warden |
 | `src/net.js` | PeerJS transport: room codes, hosting, dialling, packets |
 | `src/remote.js` | Teammate avatars, interpolation and name tags |
 | `src/squad.js` | Co-op orchestration: roles, roster, snapshots, respawns |
 | `src/effects.js` | Particles, tracers, rings, screen shake sources |
-| `src/hud.js` | HUD updates, weapon strip, map label, FPS readout, banners |
+| `src/hud.js` | HUD updates, weapon strip, map label, FPS readout, banners, boss bar |
 | `src/audio.js` | Procedural Web Audio engine |
 | `src/style.css` | Base HUD and screens |
 | `src/ui.css` | Weapon strip, event and map pickers, arsenal, armory, accounts, quality controls and squad panel |
 | `src/touch.css` | Touch layout overrides and portrait handling |
+| `src/boss.css` | Boss bar placement and the warden's colour ramp |
 
 ## Performance
 
@@ -362,6 +382,10 @@ the active mode on the start screen.
   missed day resetting it, a second same-day claim refused, a clock set back
   refused, the streak belonging to the operator, and the claim button paying the
   wallet the armory spends from.
+- `test/boss.mjs`: the boss cadence and its bar — wave four staying ordinary,
+  wave five fielding a bigger warden with a thinner escort, the bar appearing at
+  full hull, shortening with damage, turning hot under a third and clearing on
+  the kill, the payout, and a guest mirroring the host's boss and its health.
 - `test/mobile.mjs`: a Playwright touch-emulation pass (844×390 landscape and
   390×844 portrait, plus a desktop regression run) checking stick movement, look
   deltas, firing, reload, jump, dash cooldown, pause/resume, portrait FOV, weapon
