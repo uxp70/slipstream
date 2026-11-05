@@ -83,6 +83,79 @@ check(
   'map blurb updates with the selection'
 );
 
+// ---------------------------------------------------------------- events
+const eventCount = await page.locator('[data-event]').count();
+check(eventCount === 3, 'start screen offers 3 events', `cards=${eventCount}`);
+
+const evInfo = await page.evaluate(() => {
+  const g = window.__game;
+  const out = {};
+  for (const id of ['neon', 'frontier', 'whiteout']) {
+    g.events.select(id);
+    g.enemies.clear();
+    g.enemies.spawn('drifter', g.player.pos);
+    g.enemies.spawn('sentry', g.player.pos);
+    const d = g.enemies.list.find((e) => e.type === 'drifter');
+    const s = g.enemies.list.find((e) => e.type === 'sentry');
+    let body = 0;
+    let glow = 0;
+    g.weapons.models[0].group.traverse((o) => {
+      const m = o.material;
+      if (!m) return;
+      if (m.name === 'body') body = m.color.getHex();
+      if (m.name === 'glow') glow = m.color.getHex();
+    });
+    out[id] = {
+      map: g.world.mapId,
+      drifter: d ? d.cfg.color : 0,
+      sentry: s ? s.cfg.color : 0,
+      drifterShape: d ? d.cfg.shape || 'ico' : '',
+      sentryShape: s ? s.cfg.shape || 'dodeca' : '',
+      body,
+      glow,
+      cards: document.querySelectorAll('[data-map]').length,
+      sel: document.querySelector('[data-event].sel')?.dataset.event,
+      label: document.getElementById('map-name').textContent,
+    };
+  }
+  g.events.select('neon');
+  g.enemies.clear();
+  return out;
+});
+console.log('events:', JSON.stringify(evInfo));
+check(
+  evInfo.frontier.map === 'dustfall' && evInfo.whiteout.map === 'glacier',
+  'each event brings its own arena',
+  `${evInfo.frontier.map}/${evInfo.whiteout.map}`
+);
+check(
+  evInfo.neon.cards === 3 && evInfo.frontier.cards === 1,
+  'arena cards follow the event',
+  `${evInfo.neon.cards}/${evInfo.frontier.cards}`
+);
+check(
+  new Set([evInfo.neon.drifter, evInfo.frontier.drifter, evInfo.whiteout.drifter]).size === 3,
+  'events reskin the hostiles'
+);
+check(
+  evInfo.frontier.drifterShape === 'octa' && evInfo.frontier.sentryShape === 'box',
+  'event skin changes the silhouette',
+  `${evInfo.frontier.drifterShape}/${evInfo.frontier.sentryShape}`
+);
+check(
+  new Set([evInfo.neon.body, evInfo.frontier.body, evInfo.whiteout.body]).size === 3,
+  'events reskin the weapons'
+);
+check(
+  new Set([evInfo.neon.glow, evInfo.frontier.glow, evInfo.whiteout.glow]).size === 3,
+  'weapon glow follows the skin'
+);
+check(
+  evInfo.whiteout.sel === 'whiteout' && evInfo.whiteout.label.includes('GLACIER'),
+  'selection and HUD follow the event',
+  evInfo.whiteout.label
+);
+
 // -------------------------------------------------------------- difficulty
 const diffCount = await page.locator('[data-diff]').count();
 check(diffCount === 3, 'start screen offers 3 difficulties', `buttons=${diffCount}`);
