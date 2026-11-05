@@ -142,6 +142,7 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
+  flex-wrap: wrap;
 }
 .graphics-row .picker-label {
   margin: 0 4px 0 0;
@@ -393,4 +394,11 @@ body.touch .sq-input.code {
 body.touch .squad-row .qbtn {
   min-height: 32px;
   padding: 6px 10px;
+}
+
+/* the difficulty row carries three labels plus its own heading, so keep the
+   targets thumb-sized and let the row wrap rather than overflow */
+body.touch .graphics-row .qbtn {
+  min-height: 30px;
+  padding: 6px 9px;
 }
