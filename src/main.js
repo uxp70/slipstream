@@ -19,6 +19,7 @@ import { Arsenal } from './inventory.js';
 import { Armory } from './buffs.js';
 import { Accounts } from './account.js';
 import { Daily } from './daily.js';
+import { Consumables } from './consumables.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -121,6 +122,8 @@ class Game {
     this.armory = new Armory(this);
     // the daily drop pays into that same wallet, so it is built after the armory
     this.daily = new Daily(this);
+    // wave drops: turret, drone strike, nuke — earned and spent inside one run
+    this.consumables = new Consumables(this);
     // a live session brings back the operator, its wallet and its loadout
     this.accounts.restore();
 
@@ -548,6 +551,8 @@ class Game {
     this.player.dashCooldownMult = this.armory.dashMult();
     this.player.reset(this.world.spawnAt.clone());
     this.weapons.reset();
+    // drops never outlive the match that earned them
+    this.consumables.reset();
     this.weapons.setVisible(true);
 
     this.hud.reset();
@@ -580,6 +585,7 @@ class Game {
     this.hitstop = 0;
     this.hud.hideOver();
     this.hud.hidePause();
+    this.consumables.clear();
     this.hud.setBoss(null, 0);
     this.hud.setLowHp(false);
     this.hud.off();
@@ -652,6 +658,7 @@ class Game {
     this.deathTimer = 1.35;
     this.audio.gameOver();
     this.weapons.setVisible(false);
+    this.consumables.clear();
     this.hud.banner('SIGNAL LOST', 'RUN TERMINATED');
     this.hud.setLowHp(false);
     this.input.unlock();
@@ -764,6 +771,7 @@ class Game {
       // guests render the host's wave instead of running the AI themselves
       if (!this.squad.isGuest) this.enemies.update(d, this.player, this.t);
       this.squad.update(d);
+      this.consumables.update(d);
       this.updateGame(d, raw);
     } else if (this.state === 'dead' || this.state === 'over') {
       this.player.update(raw, this.input, 0);
@@ -820,7 +828,11 @@ class Game {
       const waveCoins = this.gainCoins(20 + this.wave * 8);
       this.score += bonus;
       this.hud.setScore(this.score);
-      this.hud.banner('WAVE CLEAR', `+${bonus} BONUS · +${waveCoins} COINS · +${heal} INTEGRITY`);
+      const drop = this.consumables.award(this.wave);
+      this.hud.banner(
+        'WAVE CLEAR',
+        `+${bonus} BONUS · +${waveCoins} COINS · +${heal} INTEGRITY${drop ? ` · ${drop} READY` : ''}`,
+      );
       this.audio.waveClear();
       this.player.heal(heal);
     }
