@@ -1,0 +1,162 @@
+/* ===================== CONSUMABLES ===================== */
+/* The drop strip sits under the vitals: three keys, three counts, nothing
+   else. It is live during a run and gone with the HUD, so the hangar never
+   shows an inventory the player cannot spend. */
+#consumables {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 10px;
+  pointer-events: auto;
+}
+
+.cslot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 132px;
+  padding: 4px 8px 4px 5px;
+  border: 1px solid rgba(99, 245, 255, 0.18);
+  border-radius: 3px;
+  background: rgba(8, 16, 24, 0.5);
+  color: rgba(178, 220, 232, 0.72);
+  font-family: var(--mono, 'SFMono-Regular', monospace);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.12s linear, background 0.12s linear, color 0.12s linear,
+    transform 0.08s ease-out;
+}
+
+.cslot b {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 2px;
+  border: 1px solid rgba(99, 245, 255, 0.26);
+  background: rgba(10, 24, 34, 0.85);
+  color: rgba(150, 214, 228, 0.8);
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.cslot span {
+  flex: 1;
+  text-align: left;
+}
+
+.cslot em {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 10px;
+  color: rgba(150, 214, 228, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Armed and ready: this is the only state that gets the full accent, so the
+   strip reads at a glance instead of asking to be read. */
+.cslot.ready {
+  border-color: rgba(99, 245, 255, 0.62);
+  background: rgba(16, 40, 52, 0.72);
+  color: #e8feff;
+  box-shadow: inset 0 0 14px rgba(43, 188, 214, 0.16);
+}
+
+.cslot.ready b {
+  border-color: rgba(99, 245, 255, 0.8);
+  color: #041419;
+  background: #63f5ff;
+}
+
+.cslot.ready em {
+  color: #9dfaff;
+}
+
+.cslot.empty {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.cslot:hover:not(.empty),
+.cslot:focus-visible {
+  border-color: rgba(168, 255, 255, 0.85);
+  background: rgba(24, 58, 72, 0.8);
+  color: #ffffff;
+}
+
+.cslot:active:not(.empty) {
+  transform: translateY(1px);
+}
+
+.cslot:disabled {
+  cursor: default;
+}
+
+@keyframes consume-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(99, 245, 255, 0.55);
+  }
+  40% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 3px rgba(99, 245, 255, 0.16);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(99, 245, 255, 0);
+  }
+}
+
+.cslot.pulse {
+  animation: consume-pulse 0.6s ease-out;
+}
+
+/* Touch builds get the same three actions as real thumb buttons, stacked
+   above the movement stick where the left thumb already is. */
+#touch-buttons .tbtn.cons {
+  width: 46px;
+  height: 46px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(178, 220, 232, 0.6);
+  border-color: rgba(99, 245, 255, 0.2);
+  background: rgba(8, 18, 28, 0.42);
+}
+
+#touch-buttons .tbtn.cons.ready {
+  color: #041419;
+  border-color: rgba(168, 255, 255, 0.85);
+  background: radial-gradient(circle at 36% 30%, #b6feff, #35cfe0);
+  box-shadow: 0 0 18px rgba(99, 245, 255, 0.3);
+}
+
+#tb-use-turret {
+  left: var(--pad-l);
+  bottom: calc(var(--pad-b) + 158px);
+}
+
+#tb-use-drone {
+  left: calc(var(--pad-l) + 54px);
+  bottom: calc(var(--pad-b) + 158px);
+}
+
+#tb-use-nuke {
+  left: calc(var(--pad-l) + 108px);
+  bottom: calc(var(--pad-b) + 158px);
+}
+
+@media (max-height: 480px) {
+  #consumables {
+    gap: 3px;
+    margin-top: 6px;
+  }
+
+  .cslot {
+    min-width: 112px;
+    padding: 3px 6px 3px 4px;
+    font-size: 8px;
+  }
+}
