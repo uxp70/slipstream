@@ -20,6 +20,8 @@ import { Armory } from './buffs.js';
 import { Accounts } from './account.js';
 import { Daily } from './daily.js';
 import { Consumables } from './consumables.js';
+import { Architecture } from './architecture.js';
+import { Contracts } from './contracts.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -79,6 +81,8 @@ class Game {
     this.input.touchMode = this.isTouch;
     this.touch = new TouchControls(this.input, { onPause: () => this.pause() });
     this.world = new World(this.scene);
+    // render-only dressing: skyline, windows, rooflines; rebuilt with each map
+    this.architecture = new Architecture(this.world);
     this.effects = new Effects(this.scene);
     this.player = new Player(this.camera, this.world, this.audio, this.effects);
     this.enemies = new EnemyManager(this.scene, this.audio, this.effects, this.world, this.camera);
@@ -124,6 +128,8 @@ class Game {
     this.daily = new Daily(this);
     // wave drops: turret, drone strike, nuke — earned and spent inside one run
     this.consumables = new Consumables(this);
+    // per-wave anomalies and bounty contracts; host-side only in co-op
+    this.contracts = new Contracts(this);
     // a live session brings back the operator, its wallet and its loadout
     this.accounts.restore();
 
@@ -382,6 +388,7 @@ class Game {
     this.syncStartHeadline();
 
     this.player.reset(this.world.spawnAt.clone());
+    this.architecture.build();
     this.renderer.compile?.(this.scene, this.camera);
     return map;
   }
@@ -553,6 +560,7 @@ class Game {
     this.weapons.reset();
     // drops never outlive the match that earned them
     this.consumables.reset();
+    this.contracts.reset();
     this.weapons.setVisible(true);
 
     this.hud.reset();
@@ -586,6 +594,7 @@ class Game {
     this.hud.hideOver();
     this.hud.hidePause();
     this.consumables.clear();
+    this.contracts.clear();
     this.hud.setBoss(null, 0);
     this.hud.setLowHp(false);
     this.hud.off();
@@ -650,6 +659,7 @@ class Game {
     const sub = n === 1 ? `${waveSubtitle(n)} · ${this.enemies.mods.name}` : waveSubtitle(n);
     this.hud.banner(`WAVE ${String(n).padStart(2, '0')}`, sub);
     this.audio.waveStart(n);
+    this.contracts.enter(n);
   }
 
   startDeath() {
@@ -659,6 +669,7 @@ class Game {
     this.audio.gameOver();
     this.weapons.setVisible(false);
     this.consumables.clear();
+    this.contracts.clear();
     this.hud.banner('SIGNAL LOST', 'RUN TERMINATED');
     this.hud.setLowHp(false);
     this.input.unlock();
@@ -716,7 +727,10 @@ class Game {
       this.comboTimer = 5;
       const mult = this.multiplier();
       const airborne = !this.player.onGround;
-      const gained = Math.round(res.score * mult) + (headshot ? 50 : 0) + (airborne ? 40 : 0);
+      const gained =
+        Math.round(res.score * mult * this.contracts.scoreMult()) +
+        (headshot ? 50 : 0) +
+        (airborne ? 40 : 0);
       this.score += gained;
       this.hud.popAtWorld(point, this.camera, `+${gained}`, 'kill', 40);
       if (headshot) this.hud.popCenter('HEADSHOT +50', 'bonus', -54);
@@ -772,6 +786,7 @@ class Game {
       if (!this.squad.isGuest) this.enemies.update(d, this.player, this.t);
       this.squad.update(d);
       this.consumables.update(d);
+      this.contracts.update(d);
       this.updateGame(d, raw);
     } else if (this.state === 'dead' || this.state === 'over') {
       this.player.update(raw, this.input, 0);
