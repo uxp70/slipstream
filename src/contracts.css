@@ -1,0 +1,105 @@
+/* ===================== WAVE CONTRACTS ===================== */
+/* Two readouts, one line: what the wave is doing to you, and what it is paying
+   for a specific kill. Both are hidden the moment there is nothing to say. */
+#contracts {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 9px;
+  pointer-events: none;
+  font-family: var(--mono, 'SFMono-Regular', monospace);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#contracts .cchip {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid rgba(99, 245, 255, 0.26);
+  border-radius: 2px;
+  background: rgba(6, 14, 22, 0.62);
+  color: rgba(206, 240, 250, 0.86);
+  box-shadow: inset 0 0 14px rgba(20, 60, 76, 0.25);
+}
+
+#contracts .cchip.on {
+  display: inline-flex;
+}
+
+#contracts .cchip b {
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #e8feff;
+}
+
+#contracts .cchip i {
+  font-style: normal;
+  color: rgba(150, 214, 228, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+#contracts .cchip.surge {
+  border-color: rgba(255, 209, 102, 0.5);
+  color: #ffe6ad;
+}
+
+#contracts .cchip.surge b {
+  color: #ffd166;
+}
+
+#contracts .cchip.blackout {
+  border-color: rgba(158, 203, 255, 0.45);
+  color: #d8e9ff;
+}
+
+#contracts .cchip.blackout b {
+  color: #9ecbff;
+}
+
+#contracts .cchip.storm {
+  border-color: rgba(255, 138, 216, 0.5);
+  color: #ffd6f2;
+}
+
+#contracts .cchip.storm b {
+  color: #ff8ad8;
+}
+
+#contracts .cchip.bounty {
+  border-color: rgba(255, 192, 99, 0.45);
+}
+
+#contracts .cchip.bounty b {
+  color: #ffc063;
+}
+
+@keyframes contract-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#contracts .cchip.on {
+  animation: contract-in 0.22s ease-out;
+}
+
+@media (max-width: 720px) {
+  #contracts {
+    font-size: 8px;
+    gap: 5px;
+    margin-top: 6px;
+  }
+
+  #contracts .cchip {
+    padding: 2px 6px;
+  }
+}
