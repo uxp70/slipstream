@@ -25,7 +25,7 @@ export class TouchControls {
     this.bindStick();
     this.bindLook();
     this.bindHold('tb-fire', 'mouse', 0);
-    this.bindHold('tb-aim', 'mouse', 2);
+    this.bindToggle('tb-aim', 'mouse', 2);
     this.bindHold('tb-jump', 'key', 'Space');
     this.bindPress('tb-dash', 'ShiftLeft');
     this.bindPress('tb-reload', 'KeyR');
@@ -42,6 +42,7 @@ export class TouchControls {
 
     window.addEventListener('orientationchange', () => this.resetStick());
     window.addEventListener('resize', () => this.resetStick());
+    window.addEventListener('blur', () => this.resetAim());
   }
 
   setVisibleClass(el, on) {
@@ -182,6 +183,29 @@ export class TouchControls {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
+  // AIM is a tap toggle on touch: one press scopes in, the next scopes out.
+  // The virtual mouse state stays set until the next tap, so keeping a thumb
+  // planted on the button is not required.
+  bindToggle(id, type, code) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const read = () => (type === 'mouse' ? this.input.mouse(code) : this.input.down(code));
+    const set = (on) => {
+      if (type === 'mouse') this.input.setVirtualMouse(code, on);
+      else this.input.setVirtualKey(code, on);
+      this.setVisibleClass(el, on);
+      el.setAttribute('aria-pressed', String(on));
+    };
+    el.setAttribute('aria-pressed', 'false');
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this.enabled) return;
+      set(!read());
+    });
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
   bindPress(id, code) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -220,11 +244,20 @@ export class TouchControls {
     this.root.classList.remove('hidden');
   }
 
+  resetAim() {
+    this.input.setVirtualMouse(2, false);
+    const el = document.getElementById('tb-aim');
+    if (!el) return;
+    this.setVisibleClass(el, false);
+    el.setAttribute('aria-pressed', 'false');
+  }
+
   hide() {
     if (!this.root) return;
     this.enabled = false;
     this.root.classList.add('hidden');
     this.resetStick();
+    this.resetAim();
     this.lookPointer = null;
     this.input.clearVirtual();
     this.input.touchLook.dx = 0;

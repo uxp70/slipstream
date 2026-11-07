@@ -184,8 +184,9 @@ body:not(.touch) .touch-only {
 }
 
 #tb-aim {
-  right: calc(var(--pad-r) + 188px);
-  bottom: calc(var(--pad-b) + 4px);
+  /* Above the weapon strip, in its own column left of reload. */
+  right: calc(var(--pad-r) + 248px);
+  bottom: calc(var(--pad-b) + 74px);
 }
 
 #tb-reload {

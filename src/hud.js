@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import { ScopeOverlay } from './scope.js';
 
 // All HUD/screen DOM wiring. Writes are cached so the per-frame update stays
 // cheap, and every readout is driven directly by simulation state.
 export class Hud {
   constructor() {
     this.root = document.getElementById('hud');
+    this.scope = new ScopeOverlay();
+    this.currentDef = null;
     this.crosshair = document.getElementById('crosshair');
     this.hitmarkerEl = document.getElementById('hitmarker');
     this.pops = document.getElementById('pops');
@@ -95,10 +98,14 @@ export class Hud {
 
   off() {
     this.root.classList.remove('on');
+    this.setFocused(false);
   }
 
   reset() {
     this.cache = {};
+    this.currentDef = null;
+    this.root.classList.remove('scoped');
+    this.scope.set(false);
     this.clearPops();
     this.setHealth(100, 100);
     this.setAmmo(30, 30, false, null);
@@ -135,6 +142,7 @@ export class Hud {
   // Ammo is shown as a number (numbers read faster than icons) with the
   // magazine pips, the weapon name, and a low-ammo colour shift.
   setAmmo(cur, mag, reloading, def) {
+    this.currentDef = def;
     if (mag !== this.pipMag) {
       this.pipMag = mag;
       this.buildPips(mag);
@@ -254,7 +262,11 @@ export class Hud {
   }
 
   setFocused(on) {
-    this.root.classList.toggle('focus', !!on);
+    const focused = !!on;
+    const scoped = focused && this.currentDef?.id === 'lance';
+    this.root.classList.toggle('focus', focused);
+    this.root.classList.toggle('scoped', scoped);
+    this.scope.set(scoped);
   }
 
   hitmarker(kind = 'hit') {
