@@ -22,6 +22,8 @@ import { Daily } from './daily.js';
 import { Consumables } from './consumables.js';
 import { Architecture } from './architecture.js';
 import { Contracts } from './contracts.js';
+import { Avatar } from './avatar.js';
+import { Crates } from './crates.js';
 
 const BEST_KEY = 'slipstream.best';
 const SENS_KEY = 'slipstream.sens';
@@ -29,6 +31,7 @@ const VOL_KEY = 'slipstream.vol';
 const MAP_KEY = 'slipstream.map';
 const QUALITY_KEY = 'slipstream.quality';
 const DIFF_KEY = 'slipstream.diff';
+const VIEW_KEY = 'slipstream.view';
 
 class Game {
   constructor() {
@@ -90,6 +93,8 @@ class Game {
       this.camera, this.scene, this.audio, this.effects, this.player, this.world, this.enemies
     );
     this.weapon = this.weapons;
+    // the third-person body is built once and hidden while first person is on
+    this.avatar = new Avatar(this.scene, this.player, this.weapons);
     this.squad = new Squad(this);
 
     this.state = 'menu';
@@ -124,6 +129,8 @@ class Game {
     this.arsenal.apply();
     // coins + the pre-match buff shop: armed buffs are spent by the next run
     this.armory = new Armory(this);
+    // cosmetics: crate rolls, the collection, and which finish each gun wears
+    this.crates = new Crates(this);
     // the daily drop pays into that same wallet, so it is built after the armory
     this.daily = new Daily(this);
     // wave drops: turret, drone strike, nuke — earned and spent inside one run
@@ -132,12 +139,32 @@ class Game {
     this.contracts = new Contracts(this);
     // a live session brings back the operator, its wallet and its loadout
     this.accounts.restore();
+    // the collection is account-scoped too, and Crates is built before the
+    // session restores, so read it again once the operator is known
+    this.crates.reload();
+    const applyAccount = this.accounts.apply.bind(this.accounts);
+    this.accounts.apply = (record, silent) => {
+      const out = applyAccount(record, silent);
+      this.crates?.reload?.();
+      return out;
+    };
+    const signOutAccount = this.accounts.signOut.bind(this.accounts);
+    this.accounts.signOut = () => {
+      const out = signOutAccount();
+      this.crates?.reload?.();
+      return out;
+    };
 
     this.weapons.onShoot = () => {
       this.shots++;
+      this.avatar.triggerFlash();
     };
     this.weapons.onHit = (info) => this.handleHit(info);
-    this.weapons.onSwitch = () => this.hud.setWeapon(this.weapons.index);
+    this.weapons.onSwitch = () => {
+      this.hud.setWeapon(this.weapons.index);
+      this.avatar.setGun(this.weapons.weaponIndex());
+      if (this.viewMode === 'third') this.weapons.muzzleSource = this.avatar.muzzleFor(this.weapons.weaponIndex());
+    };
 
     this.enemies.onPickup = (amount) => {
       this.hud.popCenter(`+${amount} INTEGRITY`, 'bonus', -70);
@@ -146,6 +173,7 @@ class Game {
     this.hud.setBest(this.best);
     this.bindUi();
     this.applySettingsFromStorage();
+    this.setViewMode(readString(VIEW_KEY, 'first'), true);
     this.events.init();
     this.selectMap(this.mapId, true);
     this.setDifficulty(this.difficulty, true);
@@ -280,9 +308,11 @@ class Game {
       ['btn-armory', 'uiOpen'],
       ['btn-account', 'uiOpen'],
       ['btn-daily', 'uiOpen'],
+      ['btn-crates', 'uiOpen'],
       ['btn-arsenal-back', 'uiClose'],
       ['btn-armory-back', 'uiClose'],
       ['btn-daily-back', 'uiClose'],
+      ['btn-crates-back', 'uiClose'],
       ['btn-login-back', 'uiClose'],
     ]) {
       document.getElementById(id)?.addEventListener('click', () => this.audio[sound]());
@@ -305,6 +335,15 @@ class Game {
         e.stopPropagation();
         this.audio.ui();
         this.applyQuality(el.dataset.quality);
+      });
+    }
+
+    // both the start row and the pause panel carry the same two buttons
+    for (const el of document.querySelectorAll('[data-view]')) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.audio.uiConfirm();
+        this.setViewMode(el.dataset.view);
       });
     }
 
@@ -414,6 +453,19 @@ class Game {
     this.hud.setMap(this.mapLabel());
     this.syncStartHeadline();
     return diff;
+  }
+
+  // first / third person. The movement model does not change; the camera boom,
+  // the avatar and the tracer origin do.
+  setViewMode(mode, initial = false) {
+    const third = mode === 'third';
+    this.viewMode = third ? 'third' : 'first';
+    this.player.setThirdPerson(third);
+    this.weapons.setCameraMode(third, third ? this.avatar.muzzleFor(this.weapons.weaponIndex()) : null);
+    for (const el of document.querySelectorAll('[data-view]')) {
+      el.classList.toggle('sel', el.dataset.view === this.viewMode);
+    }
+    if (!initial) store(VIEW_KEY, this.viewMode);
   }
 
   applySettingsFromStorage() {
@@ -604,6 +656,7 @@ class Game {
     this.armory.paint();
     this.arsenal.render();
     this.daily.paint();
+    this.crates.paint();
     this.events.render();
     this.syncStartHeadline();
     this.audio.setMenu(true);
@@ -764,6 +817,10 @@ class Game {
       this.effects.update(raw);
       this.step(raw);
     }
+
+    // visibility follows whatever the weapon system is allowed to show, so the
+    // body appears exactly when the first-person viewmodel would have
+    this.avatar.update(raw, this.weapons.visible);
 
     this.renderer.info.reset();
     this.composer.render();
