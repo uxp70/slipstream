@@ -141,6 +141,11 @@ export class WeaponSystem {
     this.swayY = 0;
     this.time = 0;
     this.visible = false;
+    // In third person the camera-attached viewmodel is hidden and tracers come
+    // out of the avatar's carried gun; the firing logic is untouched.
+    this.firstPerson = true;
+    this.thirdPerson = false;
+    this.muzzleSource = null;
     this.projectiles = [];
 
     this.onHit = null;
@@ -216,12 +221,21 @@ export class WeaponSystem {
   applyActive() {
     const active = this.weaponIndex();
     this.models.forEach((m, i) => {
-      m.group.visible = this.visible && i === active;
+      m.group.visible = this.visible && this.firstPerson && i === active;
     });
   }
 
   setVisible(v) {
     this.visible = v;
+    this.applyActive();
+  }
+
+  // third person hides the camera viewmodel and redirects the tracer origin at
+  // the gun the avatar is carrying
+  setCameraMode(third, muzzleSource = null) {
+    this.thirdPerson = !!third;
+    this.firstPerson = !this.thirdPerson;
+    this.muzzleSource = this.thirdPerson ? muzzleSource : null;
     this.applyActive();
   }
 
@@ -439,15 +453,21 @@ export class WeaponSystem {
     if (def.bloomMax) s.bloom = Math.min(def.bloomMax, s.bloom + def.bloomPerShot);
     if (this.onShoot) this.onShoot(def);
 
-    const origin = this._origin.copy(this.camera.position);
     const dir = this._dir;
     this.camera.getWorldDirection(dir);
+    // Shots leave the player's eye, not the camera boom: in third person the
+    // camera can see past a corner the character is still behind.
+    const origin = this._origin;
+    if (this.thirdPerson) this.player.eyePosition(origin).addScaledVector(dir, 0.08);
+    else origin.copy(this.camera.position);
 
     // resolve the muzzle before the shot is built: tracers and rockets spawn at
     // it, and the viewmodel transform is only rebuilt later in the frame
     this.camera.updateMatrixWorld();
     const model = this.models[this.weaponIndex()];
-    model.muzzle.getWorldPosition(this._muzzle);
+    const muzzleSource = this.thirdPerson && this.muzzleSource ? this.muzzleSource : model.muzzle;
+    if (this.thirdPerson) muzzleSource.updateWorldMatrix(true, false);
+    muzzleSource.getWorldPosition(this._muzzle);
 
     if (def.kind === 'shotgun') {
       this.fireShotgun(origin, dir);

@@ -34,6 +34,10 @@ const _wish = new THREE.Vector3();
 const _axis = { x: 0, y: 0 };
 const _right = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+const _fwd = new THREE.Vector3();
+const _focus = new THREE.Vector3();
+const _toCam = new THREE.Vector3();
+const _desired = new THREE.Vector3();
 
 export class Player {
   constructor(camera, world, audio, effects) {
@@ -95,6 +99,13 @@ export class Player {
     this.hitWall = false;
     this.sensitivity = 0.0022;
     this.speedBoost = 0;
+    // third person is a camera offset, not a second movement model: the body,
+    // the collider and the eye all stay exactly where first person puts them
+    this.thirdPerson = false;
+  }
+
+  setThirdPerson(on) {
+    this.thirdPerson = !!on;
   }
 
   // the dash cycle this run, after any cool-down buffs
@@ -530,7 +541,6 @@ export class Player {
   }
 
   applyCamera(dt, ads = 0) {
-    const half = CFG.half;
     const targetEye = this.pos.y + this.eye + this.dip;
     const right = _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const bobScale = this.bobAmount * (1 - ads * 0.7);
@@ -545,10 +555,31 @@ export class Player {
     const shakeRoll = Math.sin(t * 2.11 + 1.3) * s * 0.045;
     const shakeY = Math.sin(t * 2.7 + 0.4) * s * 0.035;
 
-    this.camera.position.set(this.pos.x + right.x * bobX, targetEye + bobY + shakeY, this.pos.z + right.z * bobX);
     _euler.set(this.pitch + this.recoilPitch + shakePitch, this.yaw + this.recoilYaw + shakeYaw, this.roll + shakeRoll);
     this.camera.quaternion.setFromEuler(_euler);
-    this.camera.position.x += half * 0; // keep collision box centered
+
+    if (this.thirdPerson) {
+      // Over-the-shoulder: the camera sits behind the eye and looks the same
+      // way as first person, so the crosshair keeps its meaning. The boom is
+      // raycast against the arena, so backing into a wall pulls it in instead
+      // of putting the camera inside geometry.
+      const dist = 3.05 - ads * 0.85;
+      const shoulder = 0.46 + ads * 0.16;
+      _focus.set(this.pos.x + right.x * shoulder, targetEye + 0.05, this.pos.z + right.z * shoulder);
+      _fwd.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+      _desired.copy(_focus).addScaledVector(_fwd, -dist);
+      _toCam.subVectors(_desired, _focus);
+      const len = _toCam.length() || 0.001;
+      _toCam.divideScalar(len);
+      const hit = this.world.raycast(_focus, _toCam, len);
+      const reach = hit && hit.distance > 0.15 ? Math.max(0.5, hit.distance - 0.28) : len;
+      this.camera.position.copy(_focus).addScaledVector(_toCam, reach);
+      this.camera.position.y = Math.max(0.32, this.camera.position.y + shakeY * 0.4);
+    } else {
+      const half = CFG.half;
+      this.camera.position.set(this.pos.x + right.x * bobX, targetEye + bobY + shakeY, this.pos.z + right.z * bobX);
+      this.camera.position.x += half * 0; // keep collision box centered
+    }
 
     let fov = this.fov;
     const aspect = this.camera.aspect || 1;
