@@ -1,0 +1,443 @@
+/* ===================== CRATES / SKIN COLLECTION ===================== */
+
+/* camera mode: two hardware buttons instead of a range, on the pause panel.
+   These live here because this is the module that injects the buttons. */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(99, 245, 255, 0.12);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: rgba(180, 220, 235, 0.6);
+}
+.view-toggle {
+  display: flex;
+  gap: 5px;
+}
+.view-toggle .qbtn {
+  min-height: 25px;
+  padding: 4px 9px;
+  font-size: 7.5px;
+  letter-spacing: 0.1em;
+}
+body.touch .view-toggle .qbtn {
+  min-height: 30px;
+  padding: 5px 9px;
+}
+.view-row .qbtn {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+
+#screen-crates {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px 0;
+}
+
+.crate-panel {
+  width: min(760px, 94vw);
+}
+
+.crate-panel .coin-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 14px;
+}
+
+#crate-owned {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: rgba(170, 210, 225, 0.5);
+}
+
+.crate-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: min(660px, 90vw);
+  margin: 16px auto 0;
+}
+
+.crate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 11px 9px;
+  text-align: left;
+  background: rgba(10, 20, 32, 0.72);
+  border: 1px solid color-mix(in srgb, var(--crate-accent, #63f5ff) 38%, transparent);
+  border-top: 2px solid var(--crate-accent, #63f5ff);
+  color: rgba(200, 230, 240, 0.65);
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.crate-card:hover {
+  transform: translateY(-2px);
+  background: rgba(18, 38, 56, 0.8);
+  border-color: color-mix(in srgb, var(--crate-accent, #63f5ff) 75%, transparent);
+}
+.crate-card.poor {
+  opacity: 0.55;
+}
+.crate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.crate-head b {
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #eafcff;
+}
+.crate-head i {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--crate-accent, #ffd166);
+  white-space: nowrap;
+}
+.crate-tag {
+  font-size: 7px;
+  letter-spacing: 0.22em;
+  color: rgba(170, 210, 225, 0.42);
+}
+.crate-blurb {
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  color: rgba(170, 210, 225, 0.55);
+  min-height: 34px;
+}
+.crate-odds {
+  margin-top: 2px;
+  font-size: 7.5px;
+  letter-spacing: 0.12em;
+  color: var(--crate-accent, #63f5ff);
+  opacity: 0.85;
+}
+
+/* ------------------------------ roll stage ------------------------------ */
+
+.crate-stage {
+  width: min(660px, 90vw);
+  margin: 14px auto 0;
+  padding: 10px 0 0;
+  border-top: 1px solid rgba(99, 245, 255, 0.16);
+}
+.crate-stage.hidden {
+  display: none !important;
+}
+.crate-stage-head {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.32em;
+  color: rgba(120, 235, 255, 0.8);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.reel-mask {
+  position: relative;
+  height: 98px;
+  overflow: hidden;
+  border-top: 1px solid rgba(99, 245, 255, 0.12);
+  border-bottom: 1px solid rgba(99, 245, 255, 0.12);
+  background: linear-gradient(180deg, rgba(5, 12, 20, 0.5), rgba(9, 22, 34, 0.65));
+}
+/* the paid-off edges are what make a reel read as a reel */
+.reel-mask::before,
+.reel-mask::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  z-index: 2;
+  pointer-events: none;
+}
+.reel-mask::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(3, 6, 11, 0.98), rgba(3, 6, 11, 0));
+}
+.reel-mask::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(3, 6, 11, 0.98), rgba(3, 6, 11, 0));
+}
+.reel {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 100%;
+  padding: 0 6px;
+  will-change: transform;
+}
+.reel-card {
+  flex: 0 0 124px;
+  width: 124px;
+  height: 82px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 8px;
+  border: 1px solid rgba(99, 245, 255, 0.16);
+  border-bottom: 3px solid var(--rar, #9fb6c8);
+  background: rgba(8, 18, 28, 0.85);
+  font-family: var(--mono);
+  text-align: left;
+}
+.reel-card i {
+  font-style: normal;
+  font-size: 6.5px;
+  letter-spacing: 0.24em;
+  color: var(--rar, #9fb6c8);
+}
+.reel-card b {
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #eafcff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reel-card span {
+  font-size: 6.5px;
+  letter-spacing: 0.12em;
+  color: rgba(170, 210, 225, 0.42);
+}
+.crate-stage.revealed .reel-card {
+  opacity: 0.28;
+}
+/* on reveal the reel freezes dimmed and the result card takes the eye */
+.crate-stage.revealed .reel-mask {
+  height: 62px;
+  opacity: 0.55;
+}
+.crate-stage.revealed .reel {
+  pointer-events: none;
+}
+
+.crate-result {
+  margin-top: 6px;
+}
+.result-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--rar, #9fb6c8);
+  border-top: 3px solid var(--rar, #9fb6c8);
+  background: rgba(9, 20, 32, 0.9);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--rar, #63f5ff) 18%, transparent);
+  font-family: var(--mono);
+}
+.result-rarity {
+  font-size: 7px;
+  letter-spacing: 0.34em;
+  color: var(--rar, #9fb6c8);
+}
+.result-name {
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+.result-gun {
+  font-size: 7.5px;
+  letter-spacing: 0.24em;
+  color: rgba(170, 210, 225, 0.55);
+}
+.result-note {
+  font-size: 7px;
+  letter-spacing: 0.16em;
+  color: rgba(170, 210, 225, 0.5);
+}
+.result-eq {
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: #63ffcf;
+}
+.result-card .qbtn {
+  margin-top: 3px;
+  min-height: 26px;
+  padding: 5px 12px;
+  font-size: 8px;
+}
+
+/* ------------------------------ rarities ------------------------------ */
+
+.rarity-common {
+  --rar: #9fb6c8;
+}
+.rarity-rare {
+  --rar: #63f5ff;
+}
+.rarity-epic {
+  --rar: #c58cff;
+}
+.rarity-legendary {
+  --rar: #ffb347;
+}
+
+/* ------------------------------ collection ------------------------------ */
+
+.skin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: min(660px, 90vw);
+  margin: 16px auto 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(99, 245, 255, 0.14);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.28em;
+  color: rgba(120, 235, 255, 0.8);
+}
+.skin-filters {
+  display: flex;
+  gap: 4px;
+}
+.skin-filter {
+  padding: 3px 7px;
+  background: transparent;
+  border: 1px solid rgba(99, 245, 255, 0.16);
+  color: rgba(170, 210, 225, 0.5);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+.skin-filter:hover {
+  border-color: rgba(99, 245, 255, 0.45);
+  color: #eafcff;
+}
+.skin-filter.sel {
+  border-color: var(--cyan);
+  background: rgba(24, 82, 104, 0.55);
+  color: #eafcff;
+}
+
+.skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+  gap: 6px;
+  width: min(660px, 90vw);
+  max-height: 218px;
+  overflow-y: auto;
+  margin: 0 auto;
+  padding-right: 2px;
+}
+.skin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px;
+  text-align: left;
+  background: rgba(10, 20, 32, 0.65);
+  border: 1px solid rgba(99, 245, 255, 0.14);
+  border-left: 3px solid var(--rar, #9fb6c8);
+  font-family: var(--mono);
+  color: rgba(200, 230, 240, 0.65);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.skin-card:hover {
+  transform: translateY(-1px);
+  background: rgba(18, 38, 56, 0.8);
+}
+.skin-card.eq {
+  border-color: var(--rar, #63f5ff);
+  background: rgba(24, 60, 74, 0.7);
+  box-shadow: inset 0 0 16px color-mix(in srgb, var(--rar, #63f5ff) 12%, transparent);
+}
+.skin-card b {
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #eafcff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.skin-card span {
+  font-size: 6.5px;
+  letter-spacing: 0.14em;
+  color: rgba(170, 210, 225, 0.45);
+}
+.skin-swatches {
+  display: flex;
+  gap: 2px;
+  height: 7px;
+}
+.skin-swatches i {
+  flex: 1;
+  height: 100%;
+  border-radius: 1px;
+}
+.skin-empty {
+  grid-column: 1 / -1;
+  padding: 22px 10px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: rgba(170, 210, 225, 0.4);
+  border: 1px dashed rgba(99, 245, 255, 0.14);
+}
+
+#crates-summary {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: rgba(170, 210, 225, 0.45);
+}
+
+@media (max-width: 720px) {
+  .crate-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .crate-blurb {
+    min-height: 0;
+  }
+}
+
+@media (orientation: portrait) {
+  .crate-grid {
+    grid-template-columns: 1fr;
+  }
+  .skin-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .result-name {
+    font-size: 16px;
+  }
+}
+
+@media (max-height: 480px) {
+  #screen-crates {
+    padding: 12px 0;
+  }
+  .crate-blurb,
+  .crate-tag {
+    display: none;
+  }
+  .crate-stage-head {
+    margin-bottom: 4px;
+  }
+}
