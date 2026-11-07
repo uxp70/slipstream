@@ -105,7 +105,20 @@ export const WEAPONS = [
 ];
 
 const HIP = new THREE.Vector3(0.32, -0.285, -0.6);
-const ADS = new THREE.Vector3(0, -0.16, -0.46);
+// The detailed stocks are longer than the old boxes. At the old close ADS
+// distance the butt pad sat between the eye and the optic as a black slab, so
+// the aimed viewmodel now sits further downrange while keeping the sight line
+// centered.
+const ADS = new THREE.Vector3(0, -0.16, -0.78);
+// Aiming aperture in model space (x, y). These are the optic centres modelled
+// above: the rifle lens, the shotgun ghost ring, the lance scope and the
+// launcher's offset side optic.
+export const SIGHT_OFFSETS = {
+  rifle: [0, 0.238],
+  breach: [0, 0.215],
+  lance: [0, 0.285],
+  havoc: [0.12, 0.19],
+};
 
 export class WeaponSystem {
   constructor(camera, scene, audio, effects, player, world, enemies) {
@@ -429,12 +442,18 @@ export class WeaponSystem {
     const bobX = Math.cos(this.player.bobPhase) * 0.012 * bob;
     const bobY = Math.sin(this.player.bobPhase * 2) * 0.009 * bob;
     const raiseOffset = (1 - easeOutCubic(s.raise)) * -0.34;
-    const adsOffset = def.id === 'havoc' ? -0.03 : 0;
+    // Solve the aim pose from the gun's optic centre. This lines up the tall
+    // lance scope and the launcher's offset optic, not just the rifle.
+    const sight = SIGHT_OFFSETS[def.id] || [0, 0.14];
+    const scale = model.group.scale.x;
+    const aimX = -sight[0] * scale;
+    const aimY = -sight[1] * scale;
+    const adsZ = def.id === 'havoc' ? -0.03 : 0;
 
     const g = model.group;
-    g.position.x = HIP.x + (ADS.x - HIP.x) * a + this.swayX * (1 - a * 0.7) + bobX;
-    g.position.y = HIP.y + (ADS.y - HIP.y) * a + this.swayY * (1 - a * 0.7) + bobY + reloadDip + raiseOffset;
-    g.position.z = HIP.z + adsOffset + s.kick * 0.09;
+    g.position.x = HIP.x + (aimX - HIP.x) * a + this.swayX * (1 - a * 0.7) + bobX;
+    g.position.y = HIP.y + (aimY - HIP.y) * a + this.swayY * (1 - a * 0.7) + bobY + reloadDip + raiseOffset;
+    g.position.z = HIP.z + (ADS.z - HIP.z) * a + adsZ * a + s.kick * 0.09;
     g.rotation.x = s.kickPitch * 0.5 + reloadRoll * 0.35 + this.swayY * 2.2 - raiseOffset * 1.1;
     g.rotation.y = this.swayX * 2.4 + (1 - a) * 0.035;
     g.rotation.z = reloadRoll * 0.7 + this.player.roll * 0.35;
