@@ -14,6 +14,7 @@ import { Hud } from './hud.js';
 import { Input } from './input.js';
 import { TouchControls } from './touch.js';
 import { Squad } from './squad.js';
+import { Online } from './online.js';
 import { EventDirector } from './events.js';
 import { Arsenal } from './inventory.js';
 import { Armory } from './buffs.js';
@@ -96,6 +97,11 @@ class Game {
     // the third-person body is built once and hidden while first person is on
     this.avatar = new Avatar(this.scene, this.player, this.weapons);
     this.squad = new Squad(this);
+    // The public arena is a separate transport from squad co-op: same game,
+    // same weapons, server-owned health and no wave director.
+    this.online = new Online(this);
+    this.weapons.playerTargets = this.online;
+    this.mode = 'solo';
 
     this.state = 'menu';
     this.t = 0;
@@ -437,7 +443,7 @@ class Game {
   // rules it is being fought under
   mapLabel() {
     const name = this.world.mapId.toUpperCase();
-    const tier = this.enemies.mods ? this.enemies.mods.name : '';
+    const tier = this.online?.connected ? 'ONLINE' : this.enemies.mods ? this.enemies.mods.name : '';
     return tier ? `${name} · ${tier}` : name;
   }
 
@@ -604,10 +610,45 @@ class Game {
     this.enemies.clear();
     this.effects.reset();
     this.world.resetPads();
+
+    // Public PvP: no wave, no armory spend, no NPCs. The server owns health,
+    // respawns and score; everything local is movement, weapons and feedback.
+    if (this.online?.connected) {
+      this.mode = 'pvp';
+      this.player.maxHealth = 100;
+      this.player.dashCooldownMult = 1;
+      this.player.healthRegen = false;
+      this.player.reset(this.online.spawnPoint());
+      this.weapons.reset();
+      this.consumables.reset();
+      this.contracts.reset();
+      this.weapons.setVisible(true);
+
+      this.hud.reset();
+      this.hud.on();
+      this.hud.hideStart();
+      this.hud.hidePause();
+      this.hud.hideOver();
+      this.hud.setBest(this.best);
+      this.hud.setScore(0);
+      this.hud.setHealth(100, 100);
+      this.hud.setMap(this.mapLabel());
+      this.hud.setWeapon(0);
+      this.hud.setAmmo(this.weapons.ammo, this.weapons.magSize, false, this.weapons.def);
+      this.hud.setWave(0, 0);
+
+      this.state = 'playing';
+      if (this.isTouch && this.touch) this.touch.show();
+      this.online.startRun();
+      return;
+    }
+
+    this.mode = 'solo';
     // armed buffs are spent here, so their effects last exactly this run
     this.armory.beginRun();
     this.player.maxHealth = 100 + this.armory.bonusHealth();
     this.player.dashCooldownMult = this.armory.dashMult();
+    this.player.healthRegen = true;
     this.player.reset(this.world.spawnAt.clone());
     this.weapons.reset();
     // drops never outlive the match that earned them
@@ -616,6 +657,7 @@ class Game {
     this.weapons.setVisible(true);
 
     this.hud.reset();
+    this.hud.setPvp(false);
     this.hud.on();
     this.hud.hideStart();
     this.hud.hidePause();
@@ -637,9 +679,11 @@ class Game {
   // A run ends on the report, not on another run: the report is a readout and
   // what happens next is a choice. Everything the hangar shows is repainted
   // here, so the next pick is made on numbers from the run that just ended.
-  toMenu() {
-    if (this.state === 'playing' || this.state === 'paused') return;
+  toMenu(force = false) {
+    if (!force && (this.state === 'playing' || this.state === 'paused')) return;
     this.state = 'menu';
+    this.mode = 'solo';
+    this.player.dead = false;
     this.deathTimer = 0;
     this.overShown = false;
     this.hitstop = 0;
@@ -648,6 +692,7 @@ class Game {
     this.consumables.clear();
     this.contracts.clear();
     this.hud.setBoss(null, 0);
+    this.hud.setPvp(false);
     this.hud.setLowHp(false);
     this.hud.off();
     this.weapons.setVisible(false);
@@ -666,8 +711,13 @@ class Game {
   // One line, always on screen, naming exactly what the big button starts.
   syncStartHeadline() {
     const where = this.world.mapId.toUpperCase();
-    const tier = this.enemies.mods ? this.enemies.mods.name : 'STANDARD';
-    const mode = this.squad && this.squad.isGuest ? 'SQUAD GUEST' : 'SOLO';
+    const online = !!this.online?.connected;
+    const tier = online ? 'ONLINE' : this.enemies.mods ? this.enemies.mods.name : 'STANDARD';
+    const mode = online
+      ? `PVP · ${this.online.rows.length || 1} PLAYER${this.online.rows.length === 1 ? '' : 'S'}`
+      : this.squad && this.squad.isGuest
+        ? 'SQUAD GUEST'
+        : 'SOLO';
     const context = document.getElementById('start-context');
     if (context) context.textContent = `${where} · ${tier} · ${mode}`;
     const match = document.getElementById('match-summary');
@@ -761,7 +811,18 @@ class Game {
     return n;
   }
 
-  handleHit({ enemy, point, headshot, damage }) {
+  handleHit({ enemy, target, point, headshot, damage, weapon }) {
+    // A PvP hit is resolved by the server: this reports it and shows the local
+    // feedback, but never changes a remote player's health directly.
+    if (target) {
+      this.hits++;
+      if (headshot) this.headshots++;
+      this.online.reportHit(target, damage, headshot, weapon);
+      this.audio.hit(headshot, this.combo);
+      this.hud.hitmarker(headshot ? 'head' : 'hit');
+      this.hud.popAtWorld(point, this.camera, String(Math.round(damage)), headshot ? 'head' : '');
+      return;
+    }
     // damage buffs multiply before the hit is reported, so a guest sends the
     // boosted number and the host applies it unchanged
     const dmg = damage * this.armory.damageMult();
@@ -839,11 +900,17 @@ class Game {
       const ads = controlling && !this.player.dead && this.input.mouse(2) ? 1 : 0;
       this.player.update(d, this.input, ads);
       this.weapons.update(d, this.input, controlling && !this.player.dead);
-      // guests render the host's wave instead of running the AI themselves
-      if (!this.squad.isGuest) this.enemies.update(d, this.player, this.t);
-      this.squad.update(d);
-      this.consumables.update(d);
-      this.contracts.update(d);
+      if (this.online?.connected) {
+        // No enemy simulation in the public arena; remote players come from
+        // the server snapshot and every hit is reported over the socket.
+        this.online.update(d);
+      } else {
+        // guests render the host's wave instead of running the AI themselves
+        if (!this.squad.isGuest) this.enemies.update(d, this.player, this.t);
+        this.squad.update(d);
+        this.consumables.update(d);
+        this.contracts.update(d);
+      }
       this.updateGame(d, raw);
     } else if (this.state === 'dead' || this.state === 'over') {
       this.player.update(raw, this.input, 0);
@@ -856,15 +923,7 @@ class Game {
     }
   }
 
-  updateGame(dt) {
-    if (this.player.dead) {
-      // in co-op a downed player rebuilds instead of ending the run
-      if (this.squad.handleDown()) return;
-      this.startDeath();
-      return;
-    }
-
-    // stats + HUD
+  updateCombatHud(dt) {
     this.topSpeed = Math.max(this.topSpeed, this.player.horizSpeed());
     const def = this.weapons.def;
     this.hud.setHealth(this.player.health, this.player.maxHealth);
@@ -872,7 +931,6 @@ class Game {
     this.hud.setWeapons(this.weapons.allAmmo(), this.weapons.index, this.weapons.reloading);
     this.hud.setDash(1 - this.player.dashCooldown / this.player.dashCycle());
     this.hud.setSpeed(this.player.horizSpeed());
-    this.hud.setWave(this.wave, this.enemies.remaining());
     this.hud.crosshairSpread(this.weapons.spreadPixels());
     this.hud.setFocused(this.weapons.ads > 0.5);
 
@@ -888,6 +946,27 @@ class Game {
     this.hud.setCombo(this.combo, this.multiplier(), Math.max(0, this.comboTimer) / 5);
 
     if (this.t - this.startedAt > 9) this.hud.fadeHint();
+  }
+
+  updateGame(dt) {
+    if (this.online?.active) {
+      this.updateCombatHud(dt);
+      if (this.player.dead) {
+        this.online.handleDown();
+        return;
+      }
+      return;
+    }
+
+    if (this.player.dead) {
+      // in co-op a downed player rebuilds instead of ending the run
+      if (this.squad.handleDown()) return;
+      this.startDeath();
+      return;
+    }
+
+    this.updateCombatHud(dt);
+    this.hud.setWave(this.wave, this.enemies.remaining());
 
     // wave flow: the host is the only authority that advances waves in co-op
     if (this.squad.isGuest) return;
