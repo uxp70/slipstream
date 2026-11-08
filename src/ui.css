@@ -1033,7 +1033,7 @@ body.touch .daily-card {
 .buff-card,
 .arsenal-slot,
 .arsenal-gun {
-  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease,
+    transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease,
     color 0.12s ease;
 }
 .qbtn:hover {
@@ -1063,5 +1063,154 @@ button:focus-visible,
   .start-actions {
     margin-top: 18px;
     padding: 10px 0 12px;
+  }
+}
+
+/* ===================== PUBLIC PVP ===================== */
+
+.online-panel {
+  margin-top: 12px;
+}
+
+.online-btn {
+  border-color: rgba(99, 245, 255, 0.45);
+  color: var(--cyan);
+}
+.online-btn.online-on {
+  border-color: rgba(120, 255, 200, 0.7);
+  background: rgba(14, 58, 46, 0.55);
+  color: #baffdf;
+}
+.online-btn.busy {
+  cursor: wait;
+}
+
+.online-note {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: rgba(150, 200, 215, 0.4);
+}
+
+#btn-leave-online.hidden {
+  display: none;
+}
+
+.pvp-status {
+  display: none;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: rgba(120, 255, 200, 0.8);
+}
+.pvp-status b {
+  color: #fff;
+  font-weight: 700;
+}
+
+#hud.pvp .wave-label:not(#map-name),
+#hud.pvp .wave-value,
+#hud.pvp .wave-left {
+  display: none;
+}
+#hud.pvp .pvp-status {
+  display: block;
+}
+#hud.pvp #combo {
+  display: none;
+}
+
+.pvp-board {
+  display: none;
+  width: 210px;
+  margin-top: 0;
+  padding: 9px 10px;
+  text-align: left;
+  background: rgba(4, 12, 20, 0.72);
+  border: 1px solid rgba(99, 245, 255, 0.22);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.35);
+}
+
+.pvp-board-head,
+.pvp-cols,
+.pvp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px 22px;
+  gap: 5px;
+  align-items: baseline;
+}
+
+.pvp-board-head {
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(99, 245, 255, 0.16);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: rgba(120, 255, 200, 0.8);
+}
+.pvp-board-head span:last-child {
+  text-align: right;
+  color: rgba(220, 245, 255, 0.65);
+  font-variant-numeric: tabular-nums;
+}
+
+.pvp-cols {
+  margin-bottom: 4px;
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.16em;
+  color: rgba(150, 200, 215, 0.35);
+}
+.pvp-cols span:not(:first-child) {
+  text-align: right;
+}
+
+.pvp-row {
+  min-height: 16px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: rgba(190, 225, 235, 0.68);
+}
+.pvp-row b,
+.pvp-row span:not(:first-child) {
+  text-align: right;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: rgba(220, 250, 255, 0.9);
+}
+.pvp-row.self {
+  color: var(--cyan);
+}
+.pvp-row.self .pvp-name {
+  color: #fff;
+}
+.pvp-row.dead {
+  opacity: 0.45;
+}
+.pvp-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.touch .pvp-board {
+  width: 168px;
+  padding: 7px 8px;
+}
+
+@media (max-width: 720px) {
+  .pvp-board {
+    width: 172px;
+  }
+  .online-note {
+    display: none;
+  }
+  .pvp-board-head,
+  .pvp-cols,
+  .pvp-row {
+    grid-template-columns: minmax(0, 1fr) 18px 18px;
   }
 }
