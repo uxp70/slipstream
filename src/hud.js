@@ -69,6 +69,13 @@ export class Hud {
     this.bossFillEl = document.getElementById('boss-fill');
     this.bossShown = false;
 
+    this.pvpStatus = document.getElementById('pvp-status');
+    this.pvpAlive = document.getElementById('pvp-alive');
+    this.pvpBoard = document.getElementById('pvp-board');
+    this.pvpTitle = document.getElementById('pvp-title');
+    this.pvpCount = document.getElementById('pvp-count');
+    this.pvpRows = document.getElementById('pvp-rows');
+
     this.buildPips(30);
     this.reset();
   }
@@ -125,6 +132,7 @@ export class Hud {
     this.lastPips = -1;
     this.hitmarkerEl.className = '';
     this.setBoss(null, 0);
+    this.setPvp(false);
   }
 
   setHealth(cur, max) {
@@ -254,6 +262,39 @@ export class Hud {
     if (this.bossBar) this.bossBar.classList.toggle('hurt', pct < 0.35);
   }
 
+  // --------------------------------------------------------------- public PvP
+  setPvp(on) {
+    this.root.classList.toggle('pvp', !!on);
+    if (this.pvpBoard) this.pvpBoard.style.display = on ? 'block' : 'none';
+    if (!on) this.setPvpBoard([], null, 0);
+  }
+
+  setPvpCount(alive, total) {
+    if (this.pvpAlive) this.pvpAlive.textContent = String(Math.max(0, alive | 0));
+    if (this.pvpCount) this.pvpCount.textContent = `${Math.max(0, alive | 0)}/${Math.max(0, total | 0)}`;
+  }
+
+  setPvpBoard(rows, selfId, alive) {
+    if (this.pvpRows) {
+      const sorted = [...(rows || [])].sort(
+        (a, b) => (b[8] | 0) - (a[8] | 0) || (a[9] | 0) - (b[9] | 0)
+      );
+      this.pvpRows.innerHTML = sorted
+        .map((row) => {
+          const id = row[0];
+          const name = escapeHtml(row[1] || 'RUNNER');
+          const kills = row[8] | 0;
+          const deaths = row[9] | 0;
+          return (
+            `<div class="pvp-row${id === selfId ? ' self' : ''}${row[7] ? ' dead' : ''}">` +
+            `<span class="pvp-name">${name}</span><b>${kills}</b><span>${deaths}</span></div>`
+          );
+        })
+        .join('');
+    }
+    this.setPvpCount(alive ?? (rows || []).filter((r) => !r[7]).length, (rows || []).length);
+  }
+
   crosshairSpread(px) {
     const v = `${Math.max(3, Math.min(46, px)).toFixed(1)}px`;
     if (this.cache.spread === v) return;
@@ -379,4 +420,10 @@ export class Hud {
   hideOver() {
     this.screens.over.classList.add('hidden');
   }
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (ch) => {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
 }

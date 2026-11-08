@@ -4,13 +4,17 @@ import * as THREE from 'three';
 // interpolated toward the last state packet the host relayed. Deliberately
 // cheap: one icosahedron, one wire cage, one ring and a name sprite per player,
 // so co-op costs a handful of draw calls no matter how many teammates join.
-export const TEAM_COLORS = [0x63f5ff, 0xffc063, 0x9d7bff, 0x6bffa8];
+export const TEAM_COLORS = [0x63f5ff, 0xffc063, 0x9d7bff, 0x6bffa8, 0xff6b9d, 0x8dffcf];
 
 export class RemotePlayers {
-  constructor(scene) {
+  // PvP targets sit at torso height so a ray aimed at the floating avatar is a
+  // hit; co-op keeps the original ground-level marker. The body offset is only
+  // visual, and the online hit volume uses the same number.
+  constructor(scene, bodyOffset = 0) {
     this.scene = scene;
     this.map = new Map();
     this.time = 0;
+    this.bodyOffset = bodyOffset;
   }
 
   get count() {
@@ -162,7 +166,7 @@ export class RemotePlayers {
       avatar.group.scale.setScalar(grow);
 
       const bob = Math.sin(this.time * 2.2 + avatar.phase) * 0.07;
-      avatar.group.position.set(avatar.pos.x, avatar.pos.y + bob, avatar.pos.z);
+      avatar.group.position.set(avatar.pos.x, avatar.pos.y + this.bodyOffset + bob, avatar.pos.z);
 
       const speed = Math.hypot(avatar.vel.x, avatar.vel.z);
       if (speed > 0.6) {
