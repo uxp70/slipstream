@@ -46,6 +46,7 @@
         <div class="wave-label">WAVE</div>
         <div class="wave-value" id="wave-num">1</div>
         <div class="wave-left"><span id="wave-left">0</span> HOSTILES</div>
+        <div class="pvp-status" id="pvp-status">FREE-FOR-ALL · <b id="pvp-alive">1</b> IN ARENA</div>
       </div>
 
       <div class="hud-corner tr">
@@ -53,6 +54,11 @@
           <div class="combo-mult" id="combo-mult">x1.0</div>
           <div class="combo-label">CHAIN <b id="combo-num">0</b></div>
           <div class="combo-track"><div class="combo-fill" id="combo-fill"></div></div>
+        </div>
+        <div id="pvp-board" class="pvp-board">
+          <div class="pvp-board-head"><span id="pvp-title">PUBLIC ARENA</span><span id="pvp-count">1</span></div>
+          <div class="pvp-cols"><span>PLAYER</span><span>K</span><span>D</span></div>
+          <div id="pvp-rows"></div>
         </div>
       </div>
 
@@ -173,6 +179,20 @@
         <div class="map-blurb" id="diff-blurb">STANDARD — the tuned fight the arenas were balanced around.</div>
 
         <div class="group-head">
+          <span class="group-title">ONLINE</span>
+          <span class="group-meta">PUBLIC PVP · SERVER-HOSTED</span>
+        </div>
+
+        <div class="squad-panel online-panel" id="online-panel">
+          <div class="picker-label">FREE-FOR-ALL · AUTO-MATCH</div>
+          <div class="squad-row">
+            <button type="button" class="qbtn online-btn" id="online-play">PLAY ONLINE</button>
+            <span class="online-note">NO BOTS · JOIN FROM ANY DEVICE</span>
+          </div>
+          <div class="sq-status" id="online-status">PUBLIC ARENA · NO BOTS · CLICK TO CONNECT</div>
+        </div>
+
+        <div class="group-head">
           <span class="group-title">HANGAR</span>
           <span class="group-meta">SQUAD · OPERATOR · KIT</span>
         </div>
@@ -270,6 +290,7 @@
         <h2>PAUSED</h2>
         <button id="btn-resume" class="cta small">RESUME</button>
         <button id="btn-leave-squad" class="qbtn hidden">LEAVE SQUAD</button>
+        <button id="btn-leave-online" class="qbtn hidden">LEAVE ONLINE</button>
         <div class="settings">
           <label>
             <span>MOUSE SENSITIVITY</span>
